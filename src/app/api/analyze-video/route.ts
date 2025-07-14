@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { S3Client, PutObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
 import { v4 as uuidv4 } from 'uuid';
 import ffmpeg from 'fluent-ffmpeg';
-import { writeFile, unlink } from 'fs/promises';
+import { writeFile, readFile, unlink } from 'fs/promises';
 
 // Configuration AWS S3
 const s3Client = new S3Client({
@@ -36,7 +36,7 @@ export async function POST(request: Request) {
     const tempOutputPath = `/tmp/${videoId}.mp4`;
     await writeFile(tempInputPath, videoBuffer);
 
-    const compressedVideoBuffer = await new Promise((resolve, reject) => {
+    const compressedVideoBuffer = await new Promise<Buffer>((resolve, reject) => {
       ffmpeg()
         .input(tempInputPath)
         .outputOptions([
@@ -47,7 +47,14 @@ export async function POST(request: Request) {
           '-b:a 128k'
         ])
         .toFormat('mp4')
-        .on('end', resolve)
+        .on('end', async () => {
+          try {
+            const buffer = await readFile(tempOutputPath);
+            resolve(buffer);
+          } catch (err) {
+            reject(err);
+          }
+        })
         .on('error', reject)
         .save(tempOutputPath);
     });
