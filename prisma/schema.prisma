@@ -91,3 +91,10 @@ model Profile {
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
+
+model Video {
+  id     String @id @default(uuid())
+  url    String
+  status String
+  // Ajoute d'autres champs si besoin
+}
