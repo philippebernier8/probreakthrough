@@ -91,3 +91,20 @@ model Profile {
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
+
+model Video {
+  id     String @id @default(uuid())
+  url    String
+  status String
+  matchId String?
+
+  analysisQueues AnalysisQueue[]
+}
+
+model AnalysisQueue {
+  id      String   @id @default(uuid())
+  videoId String
+  status  String
+
+  video   Video    @relation(fields: [videoId], references: [id])
+}
