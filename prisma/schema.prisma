@@ -96,5 +96,15 @@ model Video {
   id     String @id @default(uuid())
   url    String
   status String
-  // Ajoute d'autres champs si besoin
+  matchId String? // Ajouté pour lier à un match
+
+  analysisQueues AnalysisQueue[] // Relation inverse ajoutée
+}
+
+model AnalysisQueue {
+  id      String   @id @default(uuid())
+  videoId String
+  status  String
+
+  video   Video    @relation(fields: [videoId], references: [id])
 }
