@@ -4,6 +4,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import React, { useState, useEffect } from 'react';
 
+/*
 interface FeedPost {
   id: string;
   author: string;
@@ -11,13 +12,14 @@ interface FeedPost {
   date: string;
   imageUrl?: string;
 }
+*/
 
 export default function Home() {
   const [count, setCount] = useState({ athletes: 0, coaches: 0, success: 0 });
   const [isVisible, setIsVisible] = useState(false);
-  const [posts, setPosts] = useState<FeedPost[]>([]);
-  const [newContent, setNewContent] = useState('');
-  const [newAuthor, setNewAuthor] = useState('');
+  // const [posts, setPosts] = useState<FeedPost[]>([]);
+  // const [newContent, setNewContent] = useState('');
+  // const [newAuthor, setNewAuthor] = useState('');
 
   useEffect(() => {
     setIsVisible(true);
@@ -29,12 +31,13 @@ export default function Home() {
       }));
     }, 50);
 
-    const stored = JSON.parse(localStorage.getItem('feedPosts') || '[]');
-    setPosts(stored);
+    // const stored = JSON.parse(localStorage.getItem('feedPosts') || '[]');
+    // setPosts(stored);
 
     return () => clearInterval(interval);
   }, []);
 
+  /*
   const handlePost = () => {
     if (!newContent.trim() || !newAuthor.trim()) return;
     const post: FeedPost = {
@@ -48,6 +51,7 @@ export default function Home() {
     localStorage.setItem('feedPosts', JSON.stringify(updated));
     setNewContent('');
   };
+  */
 
   return (
     <div className="min-h-screen bg-white">

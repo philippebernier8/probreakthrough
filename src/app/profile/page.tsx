@@ -58,6 +58,7 @@ interface PlayerStats {
   mainHighlight: string;
 }
 
+/*
 function DateClientOnly({ date }: { date: string }) {
   const [formatted, setFormatted] = useState('');
   useEffect(() => {
@@ -65,6 +66,7 @@ function DateClientOnly({ date }: { date: string }) {
   }, [date]);
   return <span>{formatted}</span>;
 }
+*/
 
 export default function ProfilePage() {
   const defaultStats: PlayerStats = {

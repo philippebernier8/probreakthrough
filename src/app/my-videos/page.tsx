@@ -347,10 +347,12 @@ export default function MyVideosPage() {
   };
 
   // Fonction pour sauvegarder les highlights dans le localStorage
+  /*
   const handleSaveHighlights = () => {
     localStorage.setItem('youtubeVideos', JSON.stringify(youtubeVideos));
     alert('Highlights sauvegardés !');
   };
+  */
 
   if (loading) {
     return (

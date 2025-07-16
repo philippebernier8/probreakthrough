@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useEffect } from 'react';
+// import { useState } from 'react';
 import ProtectedRoute from '../../components/ProtectedRoute';
 
+/*
 interface PlayerInfo {
   name: string;
   age: string;
@@ -31,7 +32,9 @@ interface SkillStats {
   successfulDribbles: string;
   successfulTackles: string;
 }
+*/
 
+/*
 interface CareerStats {
   year: string;
   club: string;
@@ -72,8 +75,11 @@ interface LastMatchStats {
   tacklesSuccess: number;
   tackleAccuracy: number;
 }
+*/
+
 
 export default function StatsPage() {
+  /*
   const [playerInfo, setPlayerInfo] = useState<PlayerInfo>({
     name: "",
     age: "",
@@ -102,6 +108,7 @@ export default function StatsPage() {
     successfulDribbles: "####",
     successfulTackles: "####"
   });
+*/
 
   return (
     <ProtectedRoute>

@@ -2,7 +2,7 @@
 
 import Image from 'next/image';
 import Link from 'next/link';
-import VideoUpload from '@/components/VideoUpload';
+// import VideoUpload from '@/components/VideoUpload';
 import EndorsementForm from '@/components/EndorsementForm';
 import { useEffect, useState } from 'react';
 
@@ -54,7 +54,7 @@ interface YouTubeVideo {
 
 export default function PlayerProfile({ params }: { params: { id: string } }) {
   const [playerData, setPlayerData] = useState<PlayerProfile | null>(null);
-  const [youtubeVideos, setYoutubeVideos] = useState<YouTubeVideo[]>([]);
+  // const [youtubeVideos, setYoutubeVideos] = useState<YouTubeVideo[]>([]);
   const [newVideoTitle, setNewVideoTitle] = useState('');
   const [newYoutubeUrl, setNewYoutubeUrl] = useState('');
 
@@ -83,8 +83,7 @@ export default function PlayerProfile({ params }: { params: { id: string } }) {
 
   // Charger les highlights (YouTube) du localStorage
   useEffect(() => {
-    const stored = JSON.parse(localStorage.getItem('youtubeVideos') || '[]');
-    setYoutubeVideos(stored);
+    // const stored = JSON.parse(localStorage.getItem('youtubeVideos') || '[]');
   }, []);
 
   if (!playerData) {
@@ -284,7 +283,7 @@ export default function PlayerProfile({ params }: { params: { id: string } }) {
           )}
           {/* Galerie vidéos */}
           <div className="flex gap-4 overflow-x-auto">
-            {(playerData.videos || []).length > 0 ? playerData.videos!.map((video, idx) => (
+            {(playerData.videos || []).length > 0 ? playerData.videos!.map((video) => (
               <div key={video.id} className="w-40 min-w-[10rem] bg-gray-50 rounded-lg shadow p-2 flex flex-col items-center">
                 <img src={video.thumbnailUrl} alt={video.title} className="rounded-lg w-full h-24 object-cover mb-1" />
                 <div className="text-xs text-gray-700 truncate mb-1">{video.title}</div>
