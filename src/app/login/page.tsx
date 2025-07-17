@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { signIn, getSession } from 'next-auth/react';
 import Link from 'next/link';
 
 export default function LoginPage() {
@@ -11,23 +12,38 @@ export default function LoginPage() {
   const [error, setError] = useState('');
   const router = useRouter();
 
-  // Désactive la logique de connexion NextAuth
   const handleEmailLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
     setError('');
-    setTimeout(() => {
+
+    try {
+      const result = await signIn('credentials', {
+        email,
+        password,
+        redirect: false,
+      });
+
+      if (result?.error) {
+        setError('Invalid email or password');
+      } else {
+        router.push('/profile');
+      }
+    } catch (error) {
+      setError('An error occurred. Please try again.');
+    } finally {
       setIsLoading(false);
-      router.push('/profile');
-    }, 500);
+    }
   };
 
   const handleGoogleLogin = async () => {
     setIsLoading(true);
-    setTimeout(() => {
+    try {
+      await signIn('google', { callbackUrl: '/profile' });
+    } catch (error) {
+      setError('An error occurred. Please try again.');
       setIsLoading(false);
-      router.push('/profile');
-    }, 500);
+    }
   };
 
   return (

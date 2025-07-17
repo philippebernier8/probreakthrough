@@ -3,6 +3,7 @@
 import React from 'react';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { signIn } from 'next-auth/react';
 import Link from 'next/link';
 
 export default function RegisterPage() {
@@ -41,10 +42,42 @@ export default function RegisterPage() {
       return;
     }
 
-    setTimeout(() => {
+    try {
+      const response = await fetch('/api/auth/register', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          name: formData.name,
+          email: formData.email,
+          password: formData.password,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        setError(data.error || 'Registration failed');
+      } else {
+        // Auto-login after successful registration
+        const signInResult = await signIn('credentials', {
+          email: formData.email,
+          password: formData.password,
+          redirect: false,
+        });
+
+        if (signInResult?.error) {
+          setError('Registration successful but login failed. Please try logging in.');
+        } else {
+          router.push('/profile');
+        }
+      }
+    } catch (error) {
+      setError('An error occurred. Please try again.');
+    } finally {
       setIsLoading(false);
-      router.push('/profile');
-    }, 500);
+    }
   };
 
   const handleGoogleSignUp = async () => {

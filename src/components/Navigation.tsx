@@ -4,12 +4,14 @@ import React from 'react';
 import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { useSession, signOut } from 'next-auth/react';
 import Logo from './Logo';
 
 export default function Navigation() {
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const router = useRouter();
+  const { data: session, status } = useSession();
 
   const handleAthleteClick = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -41,16 +43,40 @@ export default function Navigation() {
             <Link href="/profile" className="text-gray-700 hover:text-red-700 px-3 py-2 text-sm font-medium">
               My Profile
             </Link>
+            <Link href="/messages" className="text-gray-700 hover:text-red-700 px-3 py-2 text-sm font-medium relative">
+              Messages
+              <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-4 w-4 flex items-center justify-center">
+                2
+              </span>
+            </Link>
             {/* Suppression de la cloche de notifications */}
             {/* <div className="flex items-center px-2">
               <NotificationBell />
             </div> */}
-            <Link href="/login" className="text-gray-700 hover:text-red-700 px-3 py-2 text-sm font-medium">
-              Sign in
-            </Link>
-            <Link href="/register" className="bg-red-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-red-700 transition-colors">
-              Sign up
-            </Link>
+            {status === 'loading' ? (
+              <div className="text-gray-500 px-3 py-2 text-sm">Loading...</div>
+            ) : session ? (
+              <>
+                <span className="text-gray-700 px-3 py-2 text-sm">
+                  Welcome, {session.user.name || session.user.email}
+                </span>
+                <button
+                  onClick={() => signOut({ callbackUrl: '/' })}
+                  className="text-gray-700 hover:text-red-700 px-3 py-2 text-sm font-medium"
+                >
+                  Sign out
+                </button>
+              </>
+            ) : (
+              <>
+                <Link href="/login" className="text-gray-700 hover:text-red-700 px-3 py-2 text-sm font-medium">
+                  Sign in
+                </Link>
+                <Link href="/register" className="bg-red-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-red-700 transition-colors">
+                  Sign up
+                </Link>
+              </>
+            )}
           </div>
         </div>
       </div>
