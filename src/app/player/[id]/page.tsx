@@ -290,12 +290,12 @@ export default function PlayerPage({ params }: { params: { id: string } }) {
                 {/* Stats */}
                 <div className="flex items-center space-x-8">
                   <div className="text-center">
-                    <div className="text-3xl font-bold text-red-600">{totalEndorsements}</div>
-                    <div className="text-sm text-gray-600">Endorsements</div>
+                    <div className="text-3xl font-bold text-gray-400">0</div>
+                    <div className="text-sm text-gray-500">Endorsements</div>
                   </div>
                   <div className="text-center">
-                    <div className="text-3xl font-bold text-red-600">{player.references?.length || 0}</div>
-                    <div className="text-sm text-gray-600">References</div>
+                    <div className="text-3xl font-bold text-gray-400">0</div>
+                    <div className="text-sm text-gray-500">References</div>
                   </div>
                 </div>
               </div>
@@ -314,34 +314,59 @@ export default function PlayerPage({ params }: { params: { id: string } }) {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Left Column */}
           <div className="lg:col-span-2 space-y-8">
-            {/* Highlights Section */}
-            {player.videos && player.videos.length > 0 && (
-              <div className="bg-white rounded-2xl shadow-xl p-8 border border-gray-100">
-                <h2 className="text-2xl font-bold text-gray-900 mb-6">Highlights</h2>
-                
-                {/* Main Highlight */}
-                {player.mainHighlight && (
-                  <div className="mb-6">
-                    <h3 className="text-lg font-semibold text-gray-800 mb-4">Main Highlight</h3>
-                    <div className="aspect-video rounded-xl overflow-hidden">
-                      <iframe
-                        src={player.mainHighlight}
-                        className="w-full h-full"
-                        allowFullScreen
-                      />
+            {/* Video Highlight Section - Featured */}
+            <div className="bg-gradient-to-br from-gray-900 to-gray-800 rounded-2xl overflow-hidden shadow-2xl">
+              <div className="relative aspect-video">
+                {player.mainHighlight ? (
+                  <video
+                    className="w-full h-full object-cover"
+                    controls
+                    poster="/video-placeholder.jpg"
+                  >
+                    <source src={player.mainHighlight} type="video/mp4" />
+                    Your browser does not support the video tag.
+                  </video>
+                ) : (
+                  <div className="w-full h-full bg-gradient-to-br from-gray-800 to-gray-900 flex items-center justify-center">
+                    <div className="text-center">
+                      <div className="w-24 h-24 bg-gray-700 rounded-full flex items-center justify-center mx-auto mb-6">
+                        <svg className="w-12 h-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14.828 14.828a4 4 0 01-5.656 0M9 10h1m4 0h1m-6 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                      </div>
+                      <h3 className="text-xl font-bold text-white mb-2">Main Highlight</h3>
+                      <p className="text-gray-300 mb-6">Best moments and key plays from this athlete</p>
+                      <button className="inline-flex items-center px-6 py-3 bg-red-600 text-white rounded-xl hover:bg-red-700 transition-colors">
+                        <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 4v16M17 4v16M3 8h4m10 0h4M6 4h12a2 2 0 012 2v12a2 2 0 01-2 2H6a2 2 0 01-2-2V6a2 2 0 012-2z" />
+                        </svg>
+                        Upload Highlight Video
+                      </button>
                     </div>
                   </div>
                 )}
+              </div>
+              
+              <div className="p-6">
+                <h3 className="text-xl font-bold text-white mb-2">Main Highlight</h3>
+                <p className="text-gray-300">Best moments and key plays from this athlete</p>
+              </div>
+            </div>
 
-                {/* Video Gallery */}
+            {/* Additional Videos Gallery */}
+            {player.videos && player.videos.length > 0 && (
+              <div className="bg-white rounded-2xl shadow-xl p-8 border border-gray-100">
+                <h2 className="text-2xl font-bold text-gray-900 mb-6">More Highlights</h2>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   {player.videos.map((video, index) => (
-                    <div key={index} className="aspect-video rounded-xl overflow-hidden">
-                      <iframe
-                        src={video}
-                        className="w-full h-full"
-                        allowFullScreen
-                      />
+                    <div key={index} className="aspect-video rounded-xl overflow-hidden bg-gray-100">
+                      <video
+                        className="w-full h-full object-cover"
+                        controls
+                      >
+                        <source src={video} type="video/mp4" />
+                        Your browser does not support the video tag.
+                      </video>
                     </div>
                   ))}
                 </div>
@@ -371,41 +396,25 @@ export default function PlayerPage({ params }: { params: { id: string } }) {
               </div>
             )}
 
-            {/* References Section */}
-            {player.references && player.references.length > 0 && (
-              <div className="bg-white rounded-2xl shadow-xl p-8 border border-gray-100">
-                <h2 className="text-2xl font-bold text-gray-900 mb-6">References & Endorsements</h2>
-                <div className="space-y-6">
-                  {player.references.map((reference, index) => (
-                    <div key={index} className="border border-gray-100 rounded-xl p-6">
-                      <div className="flex items-start justify-between mb-4">
-                        <div>
-                          <h3 className="text-lg font-semibold text-gray-900">{reference.name}</h3>
-                          <p className="text-gray-600">{reference.role}</p>
-                          <p className="text-sm text-gray-500">{reference.relationship}</p>
-                        </div>
-                        <div className="text-right">
-                          <div className="text-2xl font-bold text-red-600">{reference.endorsementCount}</div>
-                          <div className="text-sm text-gray-600">Endorsements</div>
-                        </div>
-                      </div>
-                      
-                      {reference.endorsements.length > 0 && (
-                        <div className="mb-4">
-                          <div className="flex flex-wrap gap-2">
-                            {reference.endorsements.map((skill, i) => (
-                              <span key={i} className="px-3 py-1 bg-red-50 text-red-600 rounded-full text-sm">
-                                {skill}
-                              </span>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  ))}
+            {/* Endorsements Section - Clean Start */}
+            <div className="bg-white rounded-2xl shadow-xl p-8 border border-gray-100">
+              <h2 className="text-2xl font-bold text-gray-900 mb-6">Endorsements</h2>
+              <div className="text-center py-12">
+                <div className="w-24 h-24 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-6">
+                  <svg className="w-12 h-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+                  </svg>
                 </div>
+                <h3 className="text-xl font-semibold text-gray-700 mb-2">No Endorsements Yet</h3>
+                <p className="text-gray-500 mb-6">Be the first to endorse this athlete</p>
+                <button className="inline-flex items-center px-6 py-3 bg-red-600 text-white rounded-xl hover:bg-red-700 transition-colors">
+                  <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+                  </svg>
+                  Endorse This Player
+                </button>
               </div>
-            )}
+            </div>
           </div>
 
           {/* Right Column */}
