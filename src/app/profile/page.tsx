@@ -7,6 +7,7 @@ import { positions, competitionLevels } from '../../utils/constants';
 import Link from 'next/link';
 import MyVideosTab from '@/components/MyVideosTab';
 import KeyStatsTab from '@/components/KeyStatsTab';
+import ProtectedRoute from '@/components/ProtectedRoute';
 
 interface Reference {
   name: string;
@@ -323,7 +324,8 @@ export default function ProfilePage() {
   ];
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
+    <ProtectedRoute>
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
       <div className="container mx-auto px-4 py-8">
         {/* Profile Header with Total Recommendations */}
         <div className="bg-white rounded-2xl shadow-xl p-8 mb-8 border border-gray-100">
@@ -871,5 +873,6 @@ export default function ProfilePage() {
         </div>
       </div>
     </div>
+    </ProtectedRoute>
   );
 } 
