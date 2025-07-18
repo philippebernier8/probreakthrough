@@ -47,9 +47,9 @@ export default function Navigation() {
               <div className="text-gray-500 px-3 py-2 text-sm">Loading...</div>
             ) : session ? (
               <>
-                <Link href="/profile" className="text-gray-700 hover:text-red-700 px-3 py-2 text-sm font-medium">
-                  My Profile
-                </Link>
+            <Link href="/profile" className="text-gray-700 hover:text-red-700 px-3 py-2 text-sm font-medium">
+              My Profile
+            </Link>
                 <Link href="/messages" className="text-gray-700 hover:text-red-700 px-3 py-2 text-sm font-medium relative">
                   Messages
                   <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-4 w-4 flex items-center justify-center">
@@ -68,12 +68,12 @@ export default function Navigation() {
               </>
             ) : (
               <>
-                <Link href="/login" className="text-gray-700 hover:text-red-700 px-3 py-2 text-sm font-medium">
-                  Sign in
-                </Link>
-                <Link href="/register" className="bg-red-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-red-700 transition-colors">
-                  Sign up
-                </Link>
+            <Link href="/login" className="text-gray-700 hover:text-red-700 px-3 py-2 text-sm font-medium">
+              Sign in
+            </Link>
+            <Link href="/register" className="bg-red-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-red-700 transition-colors">
+              Sign up
+            </Link>
               </>
             )}
           </div>

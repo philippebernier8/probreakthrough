@@ -21,6 +21,9 @@ async function testDatabase() {
         competitionLevel: 'PLSQ',
         height: '180cm',
         weight: '75kg',
+        achievements: 'Champion PLSQ 2023',
+        previousClubs: 'FC Junior, FC Youth',
+        videos: 'https://example.com/video1.mp4',
       },
     });
     console.log('✅ Profil créé:', profile);

@@ -1,3 +1,29 @@
+# Firebase & AWS
+.firebaserc
+.firebase/
+*.firebase/
+firebase-debug.log
+.aws/
+.aws-sam/
+tmp/
+.cache/
+
+# Typescript
+*.tsbuildinfo
+
+# Archives & fichiers temporaires
+*.zip
+*.bak
+*.tmp
+
+# macOS
+.DS_Store
+
+# VSCode
+.vscode/
+
+# Git backup
+.git.zip
 # Dependencies
 node_modules/
 npm-debug.log*
@@ -47,3 +73,31 @@ coverage/
 
 # Prisma
 prisma/migrations/ 
+# Firebase & AWS
+.firebaserc
+.firebase/
+*.firebase/
+firebase-debug.log
+.aws/
+.aws-sam/
+tmp/
+.cache/
+
+# Typescript
+*.tsbuildinfo
+
+# Archives & fichiers temporaires
+*.zip
+*.bak
+*.tmp
+
+# macOS
+.DS_Store
+
+# VSCode
+.vscode/
+
+# Git backup
+.git.zip
+
+
