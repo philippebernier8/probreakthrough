@@ -1,8 +1,8 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { signIn, getSession } from 'next-auth/react';
+import { signIn, getSession, useSession } from 'next-auth/react';
 import Link from 'next/link';
 
 export default function LoginPage() {
@@ -11,6 +11,14 @@ export default function LoginPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const router = useRouter();
+  const { data: session, status } = useSession();
+
+  // Redirect if already logged in
+  useEffect(() => {
+    if (status === 'authenticated' && session) {
+      router.push('/dashboard');
+    }
+  }, [session, status, router]);
 
   const handleEmailLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -39,7 +47,10 @@ export default function LoginPage() {
   const handleGoogleLogin = async () => {
     setIsLoading(true);
     try {
-      await signIn('google', { callbackUrl: '/profile' });
+      const result = await signIn('google', { 
+        callbackUrl: '/dashboard',
+        redirect: true 
+      });
     } catch (error) {
       setError('An error occurred. Please try again.');
       setIsLoading(false);

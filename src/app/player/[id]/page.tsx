@@ -53,7 +53,6 @@ export default function PlayerPage({ params }: { params: { id: string } }) {
   const [player, setPlayer] = useState<Player | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [currentUser, setCurrentUser] = useState<string | null>(null);
   const [showEndorsementForm, setShowEndorsementForm] = useState(false);
   const [newEndorsement, setNewEndorsement] = useState({
     name: '',
@@ -61,6 +60,11 @@ export default function PlayerPage({ params }: { params: { id: string } }) {
     message: '',
     skills: [] as string[]
   });
+  const [mainHighlight, setMainHighlight] = useState<{
+    url: string;
+    title: string;
+    type: 'highlight' | 'analysis';
+  } | null>(null);
 
   useEffect(() => {
     // Charger les données du joueur
@@ -71,6 +75,26 @@ export default function PlayerPage({ params }: { params: { id: string } }) {
         
         if (foundPlayer) {
           setPlayer(foundPlayer);
+          
+          // Charger le highlight principal depuis localStorage
+          const playerStats = JSON.parse(localStorage.getItem('playerStats') || '{}');
+          console.log('🔍 PlayerStats trouvés:', playerStats);
+          console.log('🔍 PlayerId dans playerStats:', playerStats.playerId);
+          console.log('🔍 PlayerId actuel:', params.id);
+          console.log('🔍 MainHighlight:', playerStats.mainHighlight);
+          console.log('🔍 MainHighlightTitle:', playerStats.mainHighlightTitle);
+          
+          // Charger le highlight principal s'il existe
+          if (playerStats.mainHighlight && playerStats.mainHighlightTitle) {
+            setMainHighlight({
+              url: playerStats.mainHighlight,
+              title: playerStats.mainHighlightTitle,
+              type: playerStats.mainHighlightType || 'highlight'
+            });
+            console.log('🏆 Highlight principal chargé:', playerStats.mainHighlight);
+          } else {
+            console.log('❌ Aucun highlight principal trouvé');
+          }
         } else {
           setError('Player not found');
         }
@@ -83,10 +107,7 @@ export default function PlayerPage({ params }: { params: { id: string } }) {
     };
 
     // Charger l'utilisateur actuel
-    const currentUserData = localStorage.getItem('currentUser');
-    if (currentUserData) {
-      setCurrentUser(JSON.parse(currentUserData));
-    }
+
 
     loadPlayerData();
   }, [params.id]);
@@ -105,17 +126,7 @@ export default function PlayerPage({ params }: { params: { id: string } }) {
     return 'Developing';
   };
 
-  const handleLoginAsPlayer = () => {
-    if (player) {
-      localStorage.setItem('currentUser', JSON.stringify(player.name));
-      setCurrentUser(player.name);
-    }
-  };
 
-  const handleLogout = () => {
-    localStorage.removeItem('currentUser');
-    setCurrentUser(null);
-  };
 
   const handleAddEndorsement = () => {
     if (!player || !newEndorsement.name || !newEndorsement.role) return;
@@ -201,7 +212,7 @@ export default function PlayerPage({ params }: { params: { id: string } }) {
     );
   }
 
-  const isOwnProfile = currentUser === player.name;
+
   const totalEndorsements = (player.references || []).reduce((total, ref) => total + ref.endorsementCount, 0);
 
   return (
@@ -217,21 +228,31 @@ export default function PlayerPage({ params }: { params: { id: string } }) {
           </Link>
           
           <div className="flex items-center space-x-4">
-            {!currentUser ? (
-              <button
-                onClick={handleLoginAsPlayer}
-                className="inline-flex items-center px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
-              >
-                Se connecter comme cet athlète
-              </button>
-            ) : (
-              <button
-                onClick={handleLogout}
-                className="inline-flex items-center px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
-              >
-                Se déconnecter
-              </button>
-            )}
+            <button
+              onClick={() => {
+                // Créer une nouvelle conversation avec cet athlète
+                const conversationData = {
+                  athleteId: player.id,
+                  athleteName: player.name,
+                  athleteImage: player.image,
+                  athletePosition: player.position,
+                  athleteClub: player.club,
+                  timestamp: new Date().toISOString()
+                };
+                
+                // Sauvegarder les données de conversation dans localStorage
+                localStorage.setItem('newConversation', JSON.stringify(conversationData));
+                
+                // Rediriger vers la page de messages
+                window.location.href = '/messages';
+              }}
+              className="inline-flex items-center px-6 py-3 bg-red-600 text-white rounded-xl hover:bg-red-700 transition-colors font-medium shadow-lg"
+            >
+              <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+              </svg>
+              Send a Message
+            </button>
           </div>
         </div>
 
@@ -317,15 +338,29 @@ export default function PlayerPage({ params }: { params: { id: string } }) {
             {/* Video Highlight Section - Featured */}
             <div className="bg-gradient-to-br from-gray-900 to-gray-800 rounded-2xl overflow-hidden shadow-2xl">
               <div className="relative aspect-video">
-                {player.mainHighlight ? (
-                  <video
-                    className="w-full h-full object-cover"
-                    controls
-                    poster="/video-placeholder.jpg"
-                  >
-                    <source src={player.mainHighlight} type="video/mp4" />
-                    Your browser does not support the video tag.
-                  </video>
+                {mainHighlight ? (
+                  <div className="w-full h-full">
+                    {mainHighlight.type === 'highlight' ? (
+                      // Vidéo YouTube
+                      <iframe
+                        src={`https://www.youtube.com/embed/${mainHighlight.url.split('v=')[1]}?autoplay=0&rel=0`}
+                        className="w-full h-full"
+                        frameBorder="0"
+                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                        allowFullScreen
+                      />
+                    ) : (
+                      // Vidéo d'analyse
+                      <video
+                        className="w-full h-full object-cover"
+                        controls
+                        poster="/video-placeholder.jpg"
+                      >
+                        <source src={mainHighlight.url} type="video/mp4" />
+                        Your browser does not support the video tag.
+                      </video>
+                    )}
+                  </div>
                 ) : (
                   <div className="w-full h-full bg-gradient-to-br from-gray-800 to-gray-900 flex items-center justify-center">
                     <div className="text-center">
@@ -348,8 +383,51 @@ export default function PlayerPage({ params }: { params: { id: string } }) {
               </div>
               
               <div className="p-6">
-                <h3 className="text-xl font-bold text-white mb-2">Main Highlight</h3>
+                <h3 className="text-xl font-bold text-white mb-2">
+                  {mainHighlight ? mainHighlight.title : 'Main Highlight'}
+                </h3>
                 <p className="text-gray-300">Best moments and key plays from this athlete</p>
+                
+                {/* Bouton de test pour charger le highlight principal */}
+                {!mainHighlight && (
+                  <div className="mt-4 p-4 bg-blue-900 rounded-lg">
+                    <p className="text-blue-200 mb-2">Debug: Aucun highlight principal trouvé</p>
+                    <button
+                      onClick={() => {
+                        const playerStats = JSON.parse(localStorage.getItem('playerStats') || '{}');
+                        const players = JSON.parse(localStorage.getItem('players') || '[]');
+                        console.log('🔍 PlayerStats manuels:', playerStats);
+                        console.log('🔍 Players dans localStorage:', players);
+                        console.log('🔍 ID actuel:', params.id);
+                        
+                        // Afficher toutes les données dans une alerte
+                        const debugInfo = {
+                          currentPlayerId: params.id,
+                          playerStats: playerStats,
+                          players: players.map((p: any) => ({ id: p.id, name: p.name })),
+                          mainHighlight: playerStats.mainHighlight,
+                          playerIdInStats: playerStats.playerId
+                        };
+                        
+                        alert('Debug Info:\n' + JSON.stringify(debugInfo, null, 2));
+                        
+                        if (playerStats.mainHighlight && playerStats.mainHighlightTitle) {
+                          setMainHighlight({
+                            url: playerStats.mainHighlight,
+                            title: playerStats.mainHighlightTitle,
+                            type: playerStats.mainHighlightType || 'highlight'
+                          });
+                          alert('✅ Highlight principal chargé manuellement !');
+                        } else {
+                          alert('❌ Aucun highlight principal dans localStorage');
+                        }
+                      }}
+                      className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 text-sm"
+                    >
+                      Debug - Voir toutes les données
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -513,89 +591,75 @@ export default function PlayerPage({ params }: { params: { id: string } }) {
             )}
 
             {/* Add Endorsement */}
-            {!isOwnProfile && (
-              <div className="bg-white rounded-2xl shadow-xl p-6 border border-gray-100">
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">Add Endorsement</h3>
-                {!showEndorsementForm ? (
-                  <button
-                    onClick={() => setShowEndorsementForm(true)}
-                    className="w-full bg-red-600 text-white py-3 rounded-xl hover:bg-red-700 transition-colors"
-                  >
-                    Endorse This Player
-                  </button>
-                ) : (
-                  <div className="space-y-4">
-                    <input
-                      type="text"
-                      placeholder="Your name"
-                      value={newEndorsement.name}
-                      onChange={(e) => setNewEndorsement(prev => ({ ...prev, name: e.target.value }))}
-                      className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent"
-                    />
-                    <input
-                      type="text"
-                      placeholder="Your role (Coach, Player, etc.)"
-                      value={newEndorsement.role}
-                      onChange={(e) => setNewEndorsement(prev => ({ ...prev, role: e.target.value }))}
-                      className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent"
-                    />
-                    <textarea
-                      placeholder="Your message (optional)"
-                      value={newEndorsement.message}
-                      onChange={(e) => setNewEndorsement(prev => ({ ...prev, message: e.target.value }))}
-                      rows={3}
-                      className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent resize-none"
-                    />
-                    
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Skills to Endorse</label>
-                      <div className="grid grid-cols-2 gap-2">
-                        {availableSkills.map((skill) => (
-                          <button
-                            key={skill}
-                            onClick={() => toggleSkill(skill)}
-                            className={`px-3 py-2 text-sm rounded-lg border transition-colors ${
-                              newEndorsement.skills.includes(skill)
-                                ? 'bg-red-50 border-red-200 text-red-700'
-                                : 'bg-gray-50 border-gray-200 text-gray-700 hover:bg-gray-100'
-                            }`}
-                          >
-                            {skill}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-
-                    <div className="flex space-x-3">
-                      <button
-                        onClick={handleAddEndorsement}
-                        className="flex-1 bg-red-600 text-white py-3 rounded-xl hover:bg-red-700 transition-colors"
-                      >
-                        Submit Endorsement
-                      </button>
-                      <button
-                        onClick={() => setShowEndorsementForm(false)}
-                        className="flex-1 bg-gray-500 text-white py-3 rounded-xl hover:bg-gray-600 transition-colors"
-                      >
-                        Cancel
-                      </button>
+            <div className="bg-white rounded-2xl shadow-xl p-6 border border-gray-100">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">Add Endorsement</h3>
+              {!showEndorsementForm ? (
+                <button
+                  onClick={() => setShowEndorsementForm(true)}
+                  className="w-full bg-red-600 text-white py-3 rounded-xl hover:bg-red-700 transition-colors"
+                >
+                  Endorse This Player
+                </button>
+              ) : (
+                <div className="space-y-4">
+                  <input
+                    type="text"
+                    placeholder="Your name"
+                    value={newEndorsement.name}
+                    onChange={(e) => setNewEndorsement(prev => ({ ...prev, name: e.target.value }))}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                  />
+                  <input
+                    type="text"
+                    placeholder="Your role (Coach, Player, etc.)"
+                    value={newEndorsement.role}
+                    onChange={(e) => setNewEndorsement(prev => ({ ...prev, role: e.target.value }))}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                  />
+                  <textarea
+                    placeholder="Your message (optional)"
+                    value={newEndorsement.message}
+                    onChange={(e) => setNewEndorsement(prev => ({ ...prev, message: e.target.value }))}
+                    rows={3}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent resize-none"
+                  />
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Skills to Endorse</label>
+                    <div className="grid grid-cols-2 gap-2">
+                      {availableSkills.map((skill) => (
+                        <button
+                          key={skill}
+                          onClick={() => toggleSkill(skill)}
+                          className={`px-3 py-2 text-sm rounded-lg border transition-colors ${
+                            newEndorsement.skills.includes(skill)
+                              ? 'bg-red-50 border-red-200 text-red-700'
+                              : 'bg-gray-50 border-gray-200 text-gray-700 hover:bg-gray-100'
+                          }`}
+                        >
+                          {skill}
+                        </button>
+                      ))}
                     </div>
                   </div>
-                )}
-              </div>
-            )}
 
-            {/* Edit Profile Button */}
-            {isOwnProfile && (
-              <div className="bg-white rounded-2xl shadow-xl p-6 border border-gray-100">
-                <Link
-                  href="/profile"
-                  className="w-full bg-red-600 text-white py-3 rounded-xl hover:bg-red-700 transition-colors text-center block"
-                >
-                  Edit Profile
-                </Link>
-              </div>
-            )}
+                  <div className="flex space-x-3">
+                    <button
+                      onClick={handleAddEndorsement}
+                      className="flex-1 bg-red-600 text-white py-3 rounded-xl hover:bg-red-700 transition-colors"
+                    >
+                      Submit Endorsement
+                    </button>
+                    <button
+                      onClick={() => setShowEndorsementForm(false)}
+                      className="flex-1 bg-gray-500 text-white py-3 rounded-xl hover:bg-gray-600 transition-colors"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </div>

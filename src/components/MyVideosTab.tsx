@@ -20,6 +20,7 @@ interface YouTubeVideo {
   likes: number;
   shares: number;
   isPublic: boolean;
+  isMainHighlight?: boolean;
 }
 
 interface VideoAnalysis {
@@ -33,6 +34,7 @@ interface VideoAnalysis {
   likes: number;
   shares: number;
   isPublic: boolean;
+  isMainHighlight?: boolean;
   results?: {
     accuracy: number;
     speed: number;
@@ -74,10 +76,72 @@ export default function MyVideosTab() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Charger les vidéos depuis localStorage au montage
   useEffect(() => {
-    const stored = JSON.parse(localStorage.getItem('youtubeVideos') || '[]');
-    setYoutubeVideos(stored);
+    console.log('🔄 Chargement des vidéos depuis localStorage...');
+    
+    // Charger les vidéos YouTube
+    const storedYoutube = JSON.parse(localStorage.getItem('youtubeVideos') || '[]');
+    // S'assurer que toutes les vidéos ont les propriétés nécessaires
+    const normalizedYoutube = storedYoutube.map((video: any) => ({
+      ...video,
+      isMainHighlight: video.isMainHighlight || false,
+      likes: video.likes || 0,
+      shares: video.shares || 0,
+      isPublic: video.isPublic !== undefined ? video.isPublic : true
+    }));
+    setYoutubeVideos(normalizedYoutube);
+    console.log('📹 Vidéos YouTube chargées:', normalizedYoutube.length);
+    console.log('📹 Structure des vidéos:', normalizedYoutube);
+    
+    // Charger les vidéos d'analyse
+    const storedAnalysis = JSON.parse(localStorage.getItem('analysisVideos') || '[]');
+    const normalizedAnalysis = storedAnalysis.map((video: any) => ({
+      ...video,
+      isMainHighlight: video.isMainHighlight || false,
+      likes: video.likes || 0,
+      shares: video.shares || 0,
+      isPublic: video.isPublic !== undefined ? video.isPublic : true
+    }));
+    setVideos(normalizedAnalysis);
+    console.log('🎬 Vidéos d\'analyse chargées:', normalizedAnalysis.length);
+    
+    setLoading(false);
   }, []);
+
+  // Sauvegarder les vidéos normalisées dans localStorage
+  useEffect(() => {
+    if (youtubeVideos.length > 0) {
+      localStorage.setItem('youtubeVideos', JSON.stringify(youtubeVideos));
+      console.log('💾 Vidéos YouTube sauvegardées avec propriétés normalisées');
+    }
+  }, [youtubeVideos]);
+
+  // Vérifier et marquer le highlight principal
+  useEffect(() => {
+    const playerStats = JSON.parse(localStorage.getItem('playerStats') || '{}');
+    const { mainHighlight, mainHighlightType } = playerStats;
+    
+    console.log('🔍 Vérification du highlight principal...');
+    console.log('📊 PlayerStats:', playerStats);
+    console.log('📹 Vidéos YouTube actuelles:', youtubeVideos);
+    
+    if (mainHighlight && mainHighlightType) {
+      console.log('🏆 Highlight principal trouvé:', { mainHighlight, mainHighlightType });
+      
+      if (mainHighlightType === 'highlight') {
+        setYoutubeVideos(prev => prev.map(video => ({
+          ...video,
+          isMainHighlight: video.youtubeUrl === mainHighlight
+        })));
+      } else if (mainHighlightType === 'analysis') {
+        setVideos(prev => prev.map(video => ({
+          ...video,
+          isMainHighlight: video.videoUrl === mainHighlight
+        })));
+      }
+    }
+  }, [youtubeVideos.length, videos.length]);
 
   const filteredYoutubeVideos = useCallback(() => {
     let filtered = [...youtubeVideos];
@@ -234,34 +298,16 @@ export default function MyVideosTab() {
     multiple: false
   });
 
+  // Nettoyer les URLs des vidéos au démontage
   useEffect(() => {
-    const fetchVideos = async () => {
-      try {
-        setLoading(true);
-        const response = await fetch('/api/videos');
-        if (!response.ok) {
-          throw new Error('Failed to fetch videos');
-        }
-        const data = await response.json();
-        setYoutubeVideos(data.youtubeVideos || []);
-        setVideos(data.analysisVideos || []);
-        setError(null);
-      } catch (error) {
-        console.error('Error fetching videos:', error);
-        setError('Failed to load videos. Please try again later.');
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchVideos();
     return () => {
       videos.forEach(video => {
-        if (video.videoUrl) {
+        if (video.videoUrl && video.videoUrl.startsWith('blob:')) {
           URL.revokeObjectURL(video.videoUrl);
         }
       });
     };
-  }, []);
+  }, [videos]);
 
   const extractYoutubeId = (url: string) => {
     const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/;
@@ -279,8 +325,24 @@ export default function MyVideosTab() {
   };
 
   const handleSaveHighlights = () => {
-    localStorage.setItem('youtubeVideos', JSON.stringify(youtubeVideos));
-    alert('Highlights sauvegardés !');
+    try {
+      // Sauvegarder les vidéos YouTube
+      localStorage.setItem('youtubeVideos', JSON.stringify(youtubeVideos));
+      
+      // Sauvegarder les vidéos d'analyse
+      localStorage.setItem('analysisVideos', JSON.stringify(videos));
+      
+      // Afficher un message de succès
+      alert(`✅ Sauvegarde réussie !\n\n📹 Vidéos YouTube: ${youtubeVideos.length}\n🎬 Vidéos d'analyse: ${videos.length}`);
+      
+      console.log('💾 Vidéos sauvegardées:', {
+        youtubeVideos: youtubeVideos.length,
+        analysisVideos: videos.length
+      });
+    } catch (error) {
+      console.error('❌ Erreur lors de la sauvegarde:', error);
+      alert('❌ Erreur lors de la sauvegarde. Veuillez réessayer.');
+    }
   };
 
   if (loading) {
@@ -337,6 +399,10 @@ export default function MyVideosTab() {
     });
     setNewYoutubeUrl('');
     setNewVideoTitle('');
+    
+    // Afficher un message de confirmation
+    alert('✅ Vidéo YouTube ajoutée et sauvegardée !');
+    console.log('📹 Nouvelle vidéo YouTube ajoutée:', newVideo.title);
   };
 
   const handleDeleteVideo = (videoId: string) => {
@@ -441,6 +507,110 @@ export default function MyVideosTab() {
     }
   };
 
+  // Fonction pour définir une vidéo comme highlight principal
+  const handleSetMainHighlight = (videoId: string, type: 'highlight' | 'analysis') => {
+    console.log('🚀 handleSetMainHighlight appelé avec:', videoId, type);
+    if (type === 'highlight') {
+      const video = youtubeVideos.find(v => v.id === videoId);
+      console.log('🔍 Vidéo trouvée:', video);
+      if (!video) {
+        console.log('❌ Vidéo non trouvée');
+        return;
+      }
+
+      try {
+        // Récupérer l'ID du joueur actuel
+        const players = JSON.parse(localStorage.getItem('players') || '[]');
+        const currentPlayer = players.find((p: any) => p.name === 'Philippe Bernier');
+        const playerId = currentPlayer?.id || 'default';
+        
+        // Sauvegarder dans le profil du joueur avec l'ID
+        const playerStats = JSON.parse(localStorage.getItem('playerStats') || '{}');
+        console.log('🔍 PlayerStats avant mise à jour:', playerStats);
+        
+        // Créer un nouvel objet avec les données du highlight
+        const updatedPlayerStats = {
+          ...playerStats,
+          playerId: playerId,
+          mainHighlight: video.youtubeUrl,
+          mainHighlightTitle: video.title,
+          mainHighlightType: type
+        };
+        
+        console.log('🔍 Objet à sauvegarder:', updatedPlayerStats);
+        console.log('🔍 JSON.stringify(updatedPlayerStats):', JSON.stringify(updatedPlayerStats));
+        
+        // Sauvegarder dans localStorage
+        try {
+          localStorage.setItem('playerStats', JSON.stringify(updatedPlayerStats));
+          console.log('💾 localStorage.setItem exécuté');
+          
+          // Vérifier que la sauvegarde a fonctionné
+          const savedData = JSON.parse(localStorage.getItem('playerStats') || '{}');
+          console.log('💾 Données vérifiées après sauvegarde:', savedData);
+          console.log('💾 mainHighlight présent:', !!savedData.mainHighlight);
+          console.log('💾 mainHighlight URL:', savedData.mainHighlight);
+          console.log('💾 mainHighlightTitle:', savedData.mainHighlightTitle);
+          
+          // Test direct de localStorage
+          console.log('🔍 Test direct - localStorage.getItem("playerStats"):', localStorage.getItem('playerStats'));
+          
+        } catch (error) {
+          console.error('❌ Erreur lors de la sauvegarde:', error);
+        }
+        
+        // Mettre à jour l'état local pour afficher visuellement quelle vidéo est le highlight principal
+        setYoutubeVideos(prev => prev.map(v => ({
+          ...v,
+          isMainHighlight: v.id === videoId
+        })));
+        
+        alert(`✅ "${video.title}" set as main highlight!`);
+        console.log('🏆 Main highlight set:', video);
+        
+      } catch (error) {
+        console.error('❌ Error setting main highlight:', error);
+        alert('❌ Error setting main highlight. Please try again.');
+      }
+    } else {
+      const video = videos.find(v => v.id === videoId);
+      if (!video) return;
+
+      try {
+        // Récupérer l'ID du joueur actuel
+        const players = JSON.parse(localStorage.getItem('players') || '[]');
+        const currentPlayer = players.find((p: any) => p.name === 'Philippe Bernier');
+        const playerId = currentPlayer?.id || 'default';
+        
+        // Sauvegarder dans le profil du joueur avec l'ID
+        const playerStats = JSON.parse(localStorage.getItem('playerStats') || '{}');
+        const updatedPlayerStats = {
+          ...playerStats,
+          playerId: playerId,
+          mainHighlight: video.videoUrl,
+          mainHighlightTitle: video.filename,
+          mainHighlightType: type
+        };
+        
+        localStorage.setItem('playerStats', JSON.stringify(updatedPlayerStats));
+        console.log('💾 Highlight principal sauvegardé pour le joueur:', playerId);
+        
+        // Mettre à jour l'état local pour afficher visuellement quelle vidéo est le highlight principal
+        setVideos(prev => prev.map(v => ({
+          ...v,
+          isMainHighlight: v.id === videoId
+        })));
+        
+        alert(`✅ "${video.filename}" set as main highlight!`);
+        console.log('🏆 Main highlight set:', video);
+        
+      } catch (error) {
+        console.error('❌ Error setting main highlight:', error);
+        alert('❌ Error setting main highlight. Please try again.');
+      }
+    }
+  };
+
   return (
     <div className="min-h-screen bg-white">
       <div className="container mx-auto px-4 py-8">
@@ -470,7 +640,7 @@ export default function MyVideosTab() {
         </div>
         {/* Barre de recherche et filtres */}
         <div className="bg-white rounded-lg shadow p-4 mb-8">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
             <input
               type="text"
               value={searchTerm}
@@ -512,6 +682,19 @@ export default function MyVideosTab() {
               <option value="asc">Ascending</option>
             </select>
           </div>
+          
+          {/* Bouton de sauvegarde */}
+          <div className="flex justify-end">
+            <button
+              onClick={handleSaveHighlights}
+              className="bg-green-600 text-white px-6 py-2 rounded-lg hover:bg-green-700 flex items-center gap-2"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
+              </svg>
+              Save Videos
+            </button>
+          </div>
         </div>
         {activeTab === 'highlights' ? (
           <div>
@@ -548,68 +731,132 @@ export default function MyVideosTab() {
                 <p className="text-sm mt-2">Add your first YouTube highlight video</p>
               </div>
             )}
-            {/* Liste des highlights YouTube */}
+                        {/* Liste des highlights YouTube */}
             {activeTab === 'highlights' && (
               <>
                 {youtubeVideos.length > 0 && (
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {filteredYoutubeVideos().map(video => (
-                      <div key={video.id} className="bg-white rounded-lg shadow overflow-hidden">
-                        <a
-                          href={video.youtubeUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="block relative aspect-video"
-                        >
-                          <img
-                            src={video.thumbnailUrl}
-                            alt={video.title}
-                            className="w-full h-full object-cover"
-                          />
-                          <div className="absolute inset-0 flex items-center justify-center">
-                            <svg className="w-16 h-16 text-red-600 opacity-90" viewBox="0 0 24 24" fill="currentColor">
-                              <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 14.5v-9l6 4.5-6 4.5z" />
-                            </svg>
-                          </div>
-                        </a>
-                        <div className="p-4">
-                          <h3 className="font-medium mb-2">{video.title}</h3>
-                          <div className="flex items-center justify-between text-sm text-gray-500">
-                            <span>{formatDate(video.addedDate)}</span>
-                            <div className="flex items-center gap-4">
-                              <button
-                                onClick={() => handleLikeVideo(video.id, 'highlight')}
-                                className="flex items-center gap-1 hover:text-blue-600"
-                              >
-                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
-                                </svg>
-                                <span>{video.likes || 0}</span>
-                              </button>
-                              <button
-                                onClick={() => handleShareVideo(video.id, 'highlight')}
-                                className="flex items-center gap-1 hover:text-blue-600"
-                              >
-                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
-                                </svg>
-                                <span>{video.shares || 0}</span>
-                              </button>
-                              <button
-                                onClick={() => handleToggleVisibility(video.id, 'highlight')}
-                                className={`flex items-center gap-1 ${video.isPublic ? 'text-green-600' : 'text-gray-500'} hover:text-green-700`}
-                              >
-                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                                </svg>
-                                <span>{video.isPublic ? 'Public' : 'Private'}</span>
-                              </button>
+                    {filteredYoutubeVideos().map(video => {
+                      console.log('🎬 Rendu de la vidéo:', video);
+                      return (
+                        <div key={video.id} className={`bg-white rounded-lg shadow overflow-hidden ${video.isMainHighlight ? 'ring-2 ring-yellow-400' : ''}`}>
+                          {video.isMainHighlight && (
+                            <div className="bg-yellow-400 text-yellow-900 px-3 py-1 text-sm font-medium text-center">
+                              ⭐ Main Highlight
+                            </div>
+                          )}
+                          <a
+                            href={video.youtubeUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="block relative aspect-video"
+                          >
+                            <img
+                              src={video.thumbnailUrl}
+                              alt={video.title}
+                              className="w-full h-full object-cover"
+                            />
+                            <div className="absolute inset-0 flex items-center justify-center">
+                              <svg className="w-16 h-16 text-red-600 opacity-90" viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 14.5v-9l6 4.5-6 4.5z" />
+                              </svg>
+                            </div>
+                          </a>
+                          <div className="p-4">
+                            <h3 className="font-medium mb-2">{video.title}</h3>
+                            <div className="flex items-center justify-between text-sm text-gray-500">
+                              <span>{formatDate(video.addedDate)}</span>
+                              <div className="flex items-center gap-4">
+                                <button
+                                  onClick={() => handleLikeVideo(video.id, 'highlight')}
+                                  className="flex items-center gap-1 hover:text-blue-600"
+                                >
+                                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+                                  </svg>
+                                  <span>{video.likes || 0}</span>
+                                </button>
+                                <button
+                                  onClick={() => handleShareVideo(video.id, 'highlight')}
+                                  className="flex items-center gap-1 hover:text-blue-600"
+                                >
+                                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
+                                  </svg>
+                                  <span>{video.shares || 0}</span>
+                                </button>
+                                <button
+                                  onClick={() => handleToggleVisibility(video.id, 'highlight')}
+                                  className={`flex items-center gap-1 ${video.isPublic ? 'text-green-600' : 'text-gray-500'} hover:text-green-700`}
+                                >
+                                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                  </svg>
+                                  <span>{video.isPublic ? 'Public' : 'Private'}</span>
+                                </button>
+                                <button
+                                  onClick={() => handleSetMainHighlight(video.id, 'highlight')}
+                                  className={`flex items-center gap-1 ${video.isMainHighlight ? 'text-yellow-600' : 'text-gray-500'} hover:text-yellow-700`}
+                                  title={video.isMainHighlight ? 'Current main highlight' : 'Set as main highlight'}
+                                >
+                                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
+                                  </svg>
+                                  <span>{video.isMainHighlight ? 'Main' : 'Set Main'}</span>
+                                </button>
+                              </div>
                             </div>
                           </div>
                         </div>
-                      </div>
-                    ))}
+                      );
+                      })}
+                  </div>
+                )}
+                
+                {/* Bouton de test pour définir le highlight principal */}
+                {youtubeVideos.length > 0 && (
+                  <div className="mt-8 p-4 bg-blue-50 rounded-lg">
+                    <h3 className="text-lg font-medium mb-4 text-blue-800">Test - Set Main Highlight</h3>
+                    <p className="text-blue-700 mb-4">
+                      Si vous ne voyez pas le bouton "Set Main" à côté de votre vidéo, cliquez ici pour définir la première vidéo comme highlight principal :
+                    </p>
+                    <div className="flex gap-4">
+                      <button
+                        onClick={() => {
+                          console.log('🔍 Bouton cliqué - Définition du highlight principal');
+                          const firstVideo = youtubeVideos[0];
+                          console.log('🔍 Première vidéo trouvée:', firstVideo);
+                          if (firstVideo) {
+                            console.log('🔍 Appel de handleSetMainHighlight avec:', firstVideo.id, 'highlight');
+                            handleSetMainHighlight(firstVideo.id, 'highlight');
+                          } else {
+                            console.log('❌ Aucune vidéo trouvée');
+                            alert('❌ Aucune vidéo YouTube disponible');
+                          }
+                        }}
+                        className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 flex items-center gap-2"
+                      >
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
+                        </svg>
+                        Set "Highlights 2023" as Main Highlight
+                      </button>
+                      
+                      <button
+                        onClick={() => {
+                          const playerStats = JSON.parse(localStorage.getItem('playerStats') || '{}');
+                          const youtubeVideos = JSON.parse(localStorage.getItem('youtubeVideos') || '[]');
+                          alert(`Debug Info:\n\nPlayerStats: ${JSON.stringify(playerStats, null, 2)}\n\nYouTube Videos: ${youtubeVideos.length} videos`);
+                        }}
+                        className="bg-green-600 text-white px-6 py-3 rounded-lg hover:bg-green-700 flex items-center gap-2"
+                      >
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        Debug - Voir les données
+                      </button>
+                    </div>
                   </div>
                 )}
               </>
@@ -768,6 +1015,16 @@ export default function MyVideosTab() {
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
                         </svg>
                         <span>{video.isPublic ? 'Public' : 'Private'}</span>
+                      </button>
+                      <button
+                        onClick={() => handleSetMainHighlight(video.id, 'analysis')}
+                        className={`flex items-center gap-1 ${video.isMainHighlight ? 'text-yellow-600' : 'text-gray-500'} hover:text-yellow-700`}
+                        title={video.isMainHighlight ? 'Current main highlight' : 'Set as main highlight'}
+                      >
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
+                        </svg>
+                        <span>{video.isMainHighlight ? 'Main' : 'Set Main'}</span>
                       </button>
                       <button
                         onClick={() => handleDeleteVideo(video.id)}

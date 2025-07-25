@@ -60,6 +60,8 @@ const formatDate = (dateString: string) => {
 };
 
 export default function MyVideosPage() {
+  console.log('🎬 MyVideosPage component rendering...'); // Debug log
+  
   const [activeTab, setActiveTab] = useState<'highlights' | 'analysis'>('highlights');
   const [youtubeVideos, setYoutubeVideos] = useState<YouTubeVideo[]>([]);
   const [newYoutubeUrl, setNewYoutubeUrl] = useState('');
@@ -78,23 +80,33 @@ export default function MyVideosPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Charger les vidéos YouTube et d'analyse sauvegardées dans le localStorage au montage de la page
+  // Charger les vidéos depuis l'API au montage de la page
   useEffect(() => {
-    try {
-      const storedYoutube = JSON.parse(localStorage.getItem('youtubeVideos') || '[]');
-      setYoutubeVideos(storedYoutube);
-      const storedAnalysis = JSON.parse(localStorage.getItem('analysisVideos') || '[]');
-      setVideos(storedAnalysis);
-      setError(null);
-    } catch (e) {
-      setError('Failed to load videos from local storage.');
-    } finally {
-      setLoading(false);
-    }
+    const fetchVideos = async () => {
+      try {
+        setLoading(true);
+        const response = await fetch('/api/videos');
+        if (!response.ok) {
+          throw new Error('Failed to fetch videos');
+        }
+        const data = await response.json();
+        setYoutubeVideos(data.youtubeVideos || []);
+        setVideos(data.analysisVideos || []);
+        setError(null);
+      } catch (error) {
+        console.error('Error fetching videos:', error);
+        setError('Failed to load videos. Please try again later.');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchVideos();
+
     // Nettoyer les URLs des vidéos précédentes
     return () => {
       videos.forEach(video => {
-        if (video.videoUrl) {
+        if (video.videoUrl && video.videoUrl.startsWith('blob:')) {
           URL.revokeObjectURL(video.videoUrl);
         }
       });
@@ -249,37 +261,54 @@ export default function MyVideosPage() {
         });
       }, 500);
 
-      // Envoyer la vidéo à l'API
-      const response = await fetch('/api/analyze-video', {
+      // Envoyer la vidéo à l'API d'upload
+      const uploadResponse = await fetch('/api/videos/upload', {
         method: 'POST',
         body: formData
       });
 
       clearInterval(uploadInterval);
 
-      if (!response.ok) {
-        throw new Error('Analysis failed');
+      if (!uploadResponse.ok) {
+        throw new Error('Upload failed');
       }
+
+      const uploadResult = await uploadResponse.json();
 
       // Mettre à jour le statut pour montrer que l'analyse est en cours
       setCurrentUpload(prev => prev ? { ...prev, status: 'processing', progress: 90 } : null);
 
-      const results = await response.json();
+      // Simuler l'analyse (pour l'instant)
+      const results = {
+        accuracy: Math.floor(Math.random() * 30) + 70,
+        speed: Math.floor(Math.random() * 30) + 70,
+        technique: Math.floor(Math.random() * 30) + 70
+      };
 
       // Ajouter l'analyse complétée à la liste
       const completedAnalysis: VideoAnalysis = {
         ...newAnalysis,
+        id: uploadResult.videoId,
         status: 'completed',
         progress: 100,
-        results: {
-          accuracy: results.accuracy,
-          speed: results.speed,
-          technique: results.technique
-        }
+        videoUrl: uploadResult.videoUrl || newAnalysis.videoUrl,
+        results: results
       };
 
       setVideos(prev => [...prev, completedAnalysis]);
       setCurrentUpload(null);
+
+      // Recharger les vidéos depuis l'API pour avoir les données persistées
+      const videosResponse = await fetch('/api/videos');
+      if (videosResponse.ok) {
+        const videosData = await videosResponse.json();
+        setVideos(videosData.analysisVideos || []);
+        // Afficher un message de succès
+        alert('Vidéo uploadée et sauvegardée avec succès !');
+      } else {
+        console.warn('Failed to reload videos from API');
+        alert('Vidéo uploadée ! Cliquez sur "Sauvegarder les vidéos" pour la persister.');
+      }
 
     } catch (error) {
       console.error('Upload failed:', error);
@@ -296,38 +325,7 @@ export default function MyVideosPage() {
     multiple: false
   });
 
-  // Charger les vidéos depuis l'API
-  useEffect(() => {
-    const fetchVideos = async () => {
-      try {
-        setLoading(true);
-        const response = await fetch('/api/videos');
-        if (!response.ok) {
-          throw new Error('Failed to fetch videos');
-        }
-        const data = await response.json();
-        setYoutubeVideos(data.youtubeVideos || []);
-        setVideos(data.analysisVideos || []);
-        setError(null);
-      } catch (error) {
-        console.error('Error fetching videos:', error);
-        setError('Failed to load videos. Please try again later.');
-      } finally {
-        setLoading(false);
-      }
-    };
 
-    fetchVideos();
-
-    // Nettoyer les URLs des vidéos précédentes
-    return () => {
-      videos.forEach(video => {
-        if (video.videoUrl) {
-          URL.revokeObjectURL(video.videoUrl);
-        }
-      });
-    };
-  }, []);
 
   // Fonction pour extraire l'ID YouTube d'une URL
   const extractYoutubeId = (url: string) => {
@@ -346,13 +344,49 @@ export default function MyVideosPage() {
     return true;
   };
 
-  // Fonction pour sauvegarder les highlights dans le localStorage
-  /*
-  const handleSaveHighlights = () => {
-    localStorage.setItem('youtubeVideos', JSON.stringify(youtubeVideos));
-    alert('Highlights sauvegardés !');
+  // Fonction pour sauvegarder explicitement les vidéos
+  const handleSaveVideos = async () => {
+    console.log('🔄 handleSaveVideos called!'); // Debug log
+    try {
+      setLoading(true);
+      console.log('📊 YouTube videos to save:', youtubeVideos.length);
+      
+      // Sauvegarder les vidéos YouTube
+      if (youtubeVideos.length > 0) {
+        for (const video of youtubeVideos) {
+          console.log('💾 Saving video:', video.title);
+          await fetch('/api/videos', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              type: 'youtube',
+              data: video
+            })
+          });
+        }
+      }
+
+      // Recharger les vidéos depuis l'API
+      console.log('🔄 Reloading videos from API...');
+      const response = await fetch('/api/videos');
+      if (response.ok) {
+        const data = await response.json();
+        setVideos(data.analysisVideos || []);
+        setYoutubeVideos(data.youtubeVideos || []);
+        console.log('✅ Videos saved successfully!');
+        alert('Vidéos sauvegardées avec succès !');
+      } else {
+        throw new Error('Failed to reload videos');
+      }
+    } catch (error) {
+      console.error('❌ Save failed:', error);
+      alert('Erreur lors de la sauvegarde. Veuillez réessayer.');
+    } finally {
+      setLoading(false);
+    }
   };
-  */
 
   if (loading) {
     return (
@@ -532,6 +566,17 @@ export default function MyVideosPage() {
     <ProtectedRoute>
       <div className="min-h-screen bg-white">
         <div className="container mx-auto px-4 py-8">
+          {/* TEST ULTRA SIMPLE */}
+          <div style={{background: 'red', color: 'white', padding: '20px', marginBottom: '20px', textAlign: 'center'}}>
+            <h2>🚨 TEST - SI VOUS VOYEZ CECI, LE CODE FONCTIONNE 🚨</h2>
+            <button 
+              onClick={() => alert('TEST CLICKED!')}
+              style={{background: 'yellow', color: 'black', padding: '10px', fontSize: '16px', fontWeight: 'bold'}}
+            >
+              CLIQUEZ ICI POUR TESTER
+            </button>
+          </div>
+          
           <h1 className="text-3xl font-bold mb-8">My Videos</h1>
 
           {/* Tabs */}
@@ -558,9 +603,22 @@ export default function MyVideosPage() {
             </button>
           </div>
 
+          {/* BOUTON DE TEST TRÈS VISIBLE */}
+          <div className="bg-red-500 text-white p-4 mb-4 text-center">
+            <button
+              onClick={() => {
+                console.log('🔴 BOUTON TEST CLICKED!');
+                alert('Bouton de test fonctionne !');
+              }}
+              className="bg-yellow-400 text-black px-8 py-4 text-xl font-bold rounded-lg border-4 border-black"
+            >
+              🚨 BOUTON DE TEST - CLIQUEZ ICI 🚨
+            </button>
+          </div>
+
           {/* Barre de recherche et filtres */}
           <div className="bg-white rounded-lg shadow p-4 mb-8">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
               <input
                 type="text"
                 value={searchTerm}
@@ -601,6 +659,44 @@ export default function MyVideosPage() {
                 <option value="desc">Descending</option>
                 <option value="asc">Ascending</option>
               </select>
+            </div>
+            
+            {/* Bouton de sauvegarde */}
+            <div className="flex justify-end">
+              <button
+                onClick={() => {
+                  console.log('🔴 TEST BUTTON CLICKED!');
+                  alert('Bouton de test cliqué !');
+                }}
+                className="bg-red-600 text-white px-6 py-2 rounded-lg hover:bg-red-700 flex items-center gap-2 text-lg font-bold"
+                style={{ border: '4px solid yellow', fontSize: '18px' }}
+              >
+                🚨 BOUTON DE TEST - CLIQUEZ ICI 🚨
+              </button>
+            </div>
+            
+            {/* Bouton de sauvegarde original */}
+            <div className="flex justify-end mt-2">
+              <button
+                onClick={handleSaveVideos}
+                disabled={loading}
+                className="bg-green-600 text-white px-6 py-2 rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                style={{ border: '2px solid red' }} // Debug: bordure rouge pour voir le bouton
+              >
+                {loading ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                    Sauvegarde...
+                  </>
+                ) : (
+                  <>
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
+                    </svg>
+                    Sauvegarder les vidéos
+                  </>
+                )}
+              </button>
             </div>
           </div>
 

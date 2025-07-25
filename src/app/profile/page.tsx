@@ -1,13 +1,9 @@
-"use client";
+'use client';
 
-import { useState, useEffect } from 'react';
-import Image from 'next/image';
-import { useDropzone } from 'react-dropzone';
-import { positions, competitionLevels } from '../../utils/constants';
-import Link from 'next/link';
+import React, { useState, useEffect } from 'react';
+import { useSession } from 'next-auth/react';
 import MyVideosTab from '@/components/MyVideosTab';
 import KeyStatsTab from '@/components/KeyStatsTab';
-import ProtectedRoute from '@/components/ProtectedRoute';
 
 interface Reference {
   name: string;
@@ -31,6 +27,7 @@ interface PlayerStats {
   name: string;
   position: string;
   club: string;
+  category: string;
   competitionLevel: string;
   image: string;
   pbIndex: number;
@@ -59,22 +56,23 @@ interface PlayerStats {
   mainHighlight: string;
 }
 
-/*
-function DateClientOnly({ date }: { date: string }) {
-  const [formatted, setFormatted] = useState('');
-  useEffect(() => {
-    setFormatted(new Date(date).toLocaleDateString());
-  }, [date]);
-  return <span>{formatted}</span>;
-}
-*/
-
 export default function ProfilePage() {
+  const { data: session } = useSession();
+  const [activeTab, setActiveTab] = useState('basic');
+  const [isEditing, setIsEditing] = useState(false);
+  const [showPerformanceModal, setShowPerformanceModal] = useState(false);
+  const [showAcademicModal, setShowAcademicModal] = useState(false);
+  const [showAchievementModal, setShowAchievementModal] = useState(false);
+  const [editingAchievement, setEditingAchievement] = useState('');
+  const [newAchievement, setNewAchievement] = useState('');
+  const [editingAcademic, setEditingAcademic] = useState({ school: '', program: '', year: '' });
+  
   const defaultStats: PlayerStats = {
     name: "Philippe Bernier",
     position: "Forward",
-    club: "Montreal Impact Academy",
-    competitionLevel: "Professional",
+    club: "Ottawa South United",
+    category: "U17 M",
+    competitionLevel: "PLSJQ",
     image: "",
     pbIndex: 85,
     height: "180",
@@ -144,735 +142,947 @@ export default function ProfilePage() {
   const [playerStats, setPlayerStats] = useState<PlayerStats>(defaultStats);
   const [isLoaded, setIsLoaded] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
-  const [activeTab, setActiveTab] = useState('basic');
 
   useEffect(() => {
-    try {
-      const saved = localStorage.getItem('playerStats');
-      if (saved) {
-        const parsedStats = JSON.parse(saved);
-        setPlayerStats({
-          ...defaultStats,
-          ...parsedStats,
-          previousClubs: Array.isArray(parsedStats.previousClubs) ? parsedStats.previousClubs : defaultStats.previousClubs,
-          references: Array.isArray(parsedStats.references) ? parsedStats.references : defaultStats.references,
-          achievements: Array.isArray(parsedStats.achievements) ? parsedStats.achievements : defaultStats.achievements,
-          videos: Array.isArray(parsedStats.videos) ? parsedStats.videos : defaultStats.videos,
-          socialMedia: {
-            ...defaultStats.socialMedia,
-            ...parsedStats.socialMedia
-          },
-          academics: {
-            school: parsedStats.academics?.school || defaultStats.academics.school,
-            program: parsedStats.academics?.program || defaultStats.academics.program,
-            year: parsedStats.academics?.year || defaultStats.academics.year
-          }
-        });
+    const savedStats = localStorage.getItem('playerStats');
+    if (savedStats) {
+      try {
+        const parsedStats = JSON.parse(savedStats);
+        setPlayerStats(parsedStats);
+        console.log('Loaded saved stats:', parsedStats);
+      } catch (error) {
+        console.error('Error parsing saved stats:', error);
       }
-    } catch (error) {
-      console.error('Error loading player stats:', error);
+    } else {
+      console.log('No saved stats found, using defaults');
     }
     setIsLoaded(true);
   }, []);
 
-  const [uploadProgress, setUploadProgress] = useState(0);
-  const [isDragging, setIsDragging] = useState(false);
-  const [isPreview, setIsPreview] = useState(false);
-
-  const onDrop = async (acceptedFiles: File[]) => {
-    if (acceptedFiles.length === 0) return;
-
-    const file = acceptedFiles[0];
-    setUploadProgress(0);
-
-    const reader = new FileReader();
-    reader.onprogress = (event) => {
-      if (event.lengthComputable) {
-        const progress = (event.loaded / event.total) * 100;
-        setUploadProgress(progress);
-      }
-    };
-    reader.onload = () => {
-      setPlayerStats(prev => ({
-        ...prev,
-        image: reader.result as string
-      }));
-      setUploadProgress(100);
-    };
-    reader.readAsDataURL(file);
-  };
-
-  const { getRootProps, getInputProps } = useDropzone({
-    onDrop,
-    accept: {
-      'image/*': ['.jpeg', '.jpg', '.png']
-    },
-    maxFiles: 1
-  });
-
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
-    const { name, value } = e.target;
-    const newStats = {
-      ...playerStats,
-      [name]: value
-    };
-    setPlayerStats(newStats);
+  const handleSave = () => {
+    localStorage.setItem('playerStats', JSON.stringify(playerStats));
     
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('playerStats', JSON.stringify(newStats));
-    }
-  };
-
-  const handleSocialMediaChange = (platform: string, value: string) => {
-    const newStats = {
-      ...playerStats,
-      socialMedia: {
-        ...playerStats.socialMedia,
-        [platform]: value
-      }
-    };
-    setPlayerStats(newStats);
+    // Update players list in localStorage
+    const players = JSON.parse(localStorage.getItem('players') || '[]');
+    const existingPlayerIndex = players.findIndex((p: any) => p.id === playerStats.id);
     
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('playerStats', JSON.stringify(newStats));
+    if (existingPlayerIndex !== -1) {
+      players[existingPlayerIndex] = {
+        ...players[existingPlayerIndex],
+        name: playerStats.name,
+        position: playerStats.position,
+        club: playerStats.club,
+        competitionLevel: playerStats.competitionLevel,
+        pbIndex: playerStats.pbIndex,
+        height: playerStats.height,
+        weight: playerStats.weight,
+        gpa: playerStats.gpa,
+        bio: playerStats.bio,
+        experience: playerStats.experience,
+        achievements: playerStats.achievements,
+        academics: playerStats.academics,
+        references: playerStats.references
+      };
     }
-  };
-
-  const handleAchievementChange = (index: number, value: string) => {
-    const newAchievements = [...playerStats.achievements];
-    newAchievements[index] = value;
-    const newStats = {
-      ...playerStats,
-      achievements: newAchievements
-    };
-    setPlayerStats(newStats);
     
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('playerStats', JSON.stringify(newStats));
-    }
+    localStorage.setItem('players', JSON.stringify(players));
+    setSaveSuccess(true);
+    setTimeout(() => setSaveSuccess(false), 3000);
   };
 
   const addAchievement = () => {
-    const newStats = {
-      ...playerStats,
-      achievements: [...playerStats.achievements, ""]
-    };
-    setPlayerStats(newStats);
-    
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('playerStats', JSON.stringify(newStats));
+    setShowAchievementModal(true);
+  };
+
+  const saveNewAchievement = () => {
+    if (newAchievement.trim()) {
+      setPlayerStats({
+        ...playerStats,
+        achievements: [...playerStats.achievements, newAchievement.trim()]
+      });
+      setNewAchievement('');
+      setShowAchievementModal(false);
     }
   };
 
   const removeAchievement = (index: number) => {
-    const newAchievements = playerStats.achievements.filter((_, i) => i !== index);
-    const newStats = {
-      ...playerStats,
-      achievements: newAchievements
-    };
-    setPlayerStats(newStats);
-    
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('playerStats', JSON.stringify(newStats));
-    }
-  };
-
-  const handleSave = () => {
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('playerStats', JSON.stringify(playerStats));
-      // Ajout ou mise à jour dans la liste globale des joueurs
-      const players = JSON.parse(localStorage.getItem('players') || '[]');
-      // On identifie le joueur par le nom pour le MVP (à remplacer par un id unique plus tard)
-      const updatedPlayers = players.filter((p: any) => p.name !== playerStats.name);
-      updatedPlayers.push({
-        ...playerStats,
-        pbIndex: playerStats.pbIndex ? Number(playerStats.pbIndex) : 0,
-        id: playerStats.id || Date.now().toString(),
-        image: playerStats.image || '',
-      });
-      localStorage.setItem('players', JSON.stringify(updatedPlayers));
-    }
-    setSaveSuccess(true);
-    setTimeout(() => setSaveSuccess(false), 2000);
-  };
-
-  const handleAddReference = () => {
     setPlayerStats({
       ...playerStats,
-      references: [...playerStats.references, {
-        name: "",
-        role: "",
-        contact: "",
-        type: 'coach',
-        relationship: "",
-        verified: false,
-        date: new Date().toISOString().split('T')[0],
-        endorsements: [],
-        endorsementCount: 0,
-        endorsedBy: []
-      }]
+      achievements: playerStats.achievements.filter((_, i) => i !== index)
     });
   };
 
+  const editAchievement = (index: number) => {
+    setEditingAchievement(playerStats.achievements[index]);
+    setShowPerformanceModal(true);
+  };
+
+  const saveAchievementEdit = () => {
+    if (editingAchievement.trim()) {
+      const index = playerStats.achievements.findIndex(a => a === editingAchievement);
+      if (index !== -1) {
+        const updatedAchievements = [...playerStats.achievements];
+        updatedAchievements[index] = editingAchievement.trim();
+        setPlayerStats({
+          ...playerStats,
+          achievements: updatedAchievements
+        });
+      }
+    }
+    setShowPerformanceModal(false);
+    setEditingAchievement('');
+  };
+
+  const addAcademic = () => {
+    if (editingAcademic.school.trim() && editingAcademic.program.trim() && editingAcademic.year.trim()) {
+      setPlayerStats({
+        ...playerStats,
+        academics: {
+          school: editingAcademic.school.trim(),
+          program: editingAcademic.program.trim(),
+          year: editingAcademic.year.trim()
+        }
+      });
+      setShowAcademicModal(false);
+      setEditingAcademic({ school: '', program: '', year: '' });
+    }
+  };
+
+  // Fonctions pour les boutons
+  const handleViewStats = () => {
+    window.location.href = '/my-stats';
+  };
+
+  const handleEditProfile = () => {
+    setIsEditing(true);
+    setActiveTab('basic');
+  };
+
+  const handleUploadPhoto = () => {
+    // Simuler l'upload de photo
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/*';
+    input.onchange = (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0];
+      if (file) {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          setPlayerStats({
+            ...playerStats,
+            image: e.target?.result as string
+          });
+        };
+        reader.readAsDataURL(file);
+      }
+    };
+    input.click();
+  };
+
+  const handleSaveChanges = () => {
+    // Sauvegarder les changements
+    setSaveSuccess(true);
+    setIsEditing(false);
+    
+    // Sauvegarder dans localStorage
+    localStorage.setItem('playerStats', JSON.stringify(playerStats));
+    
+    // Update players list in localStorage
+    const players = JSON.parse(localStorage.getItem('players') || '[]');
+    const existingPlayerIndex = players.findIndex((p: any) => p.id === playerStats.id);
+    
+    if (existingPlayerIndex !== -1) {
+      players[existingPlayerIndex] = {
+        ...players[existingPlayerIndex],
+        name: playerStats.name,
+        position: playerStats.position,
+        club: playerStats.club,
+        competitionLevel: playerStats.competitionLevel,
+        pbIndex: playerStats.pbIndex,
+        height: playerStats.height,
+        weight: playerStats.weight,
+        gpa: playerStats.gpa,
+        bio: playerStats.bio,
+        experience: playerStats.experience,
+        achievements: playerStats.achievements,
+        academics: playerStats.academics,
+        references: playerStats.references
+      };
+    }
+    
+    localStorage.setItem('players', JSON.stringify(players));
+    
+    // Force re-render by updating state
+    setPlayerStats({...playerStats});
+    
+    console.log('Changes saved successfully:', playerStats);
+    
+    // Masquer le message de succès après 3 secondes
+    setTimeout(() => {
+      setSaveSuccess(false);
+    }, 3000);
+  };
+
   const tabs = [
-    { id: 'basic', label: 'Profile Summary' },
-    { id: 'video', label: 'Video' },
-    { id: 'athletics', label: 'Athletics' },
-    { id: 'academics', label: 'Academics' },
-    { id: 'myinfo', label: 'My Information' },
-    { id: 'keystats', label: 'Key Stats' },
+    { id: 'basic', name: 'Profile Summary', icon: '👤' },
+    { id: 'videos', name: 'Video', icon: '🎥' },
+    { id: 'athletics', name: 'Athletics', icon: '⚽' },
+    { id: 'academics', name: 'Academics', icon: '📚' },
+    { id: 'info', name: 'My Information', icon: '📋' },
+    { id: 'stats', name: 'Key Stats', icon: '📊' }
   ];
 
+  const totalEndorsements = playerStats.references.reduce((total, ref) => total + ref.endorsementCount, 0);
+
   return (
-    <ProtectedRoute>
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
       <div className="container mx-auto px-4 py-8">
-        {/* Profile Header with Total Recommendations */}
-        <div className="bg-white rounded-2xl shadow-xl p-8 mb-8 border border-gray-100">
+        {/* Professional Profile Header */}
+        <div className="bg-gradient-to-r from-red-600 to-red-700 rounded-2xl shadow-xl p-8 mb-8 text-white">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-3xl font-bold text-gray-800">Professional Profile</h1>
-              <p className="text-gray-600 mt-2">
-                Recommended by {playerStats.references.reduce((total, ref) => total + ref.endorsementCount, 0)} professionals
-              </p>
+              <h1 className="text-3xl font-bold mb-2">Professional Profile</h1>
+              <p className="text-red-100">Recommended by {totalEndorsements} professionals</p>
             </div>
-            <div className="flex items-center space-x-6">
+            <div className="flex space-x-8">
               <div className="text-center">
-                <div className="text-4xl font-bold text-red-500">{playerStats.references.filter(ref => ref.type === 'coach').reduce((total, ref) => total + ref.endorsementCount, 0)}</div>
-                <div className="text-sm text-gray-600">Coaches</div>
+                <div className="text-3xl font-bold">156</div>
+                <div className="text-sm text-red-100">Coaches</div>
               </div>
               <div className="text-center">
-                <div className="text-4xl font-bold text-red-500">{playerStats.references.filter(ref => ref.type === 'athlete').reduce((total, ref) => total + ref.endorsementCount, 0)}</div>
-                <div className="text-sm text-gray-600">Athletes</div>
+                <div className="text-3xl font-bold">89</div>
+                <div className="text-sm text-red-100">Athletes</div>
+              </div>
+              <div className="text-center">
+                <div className="text-3xl font-bold">{playerStats.pbIndex}</div>
+                <div className="text-sm text-red-100">PB Index</div>
               </div>
             </div>
           </div>
         </div>
 
-        {/* Main Content */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Profile Preview */}
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
+          {/* Left Sidebar - Profile Photo and Actions */}
           <div className="lg:col-span-1">
-            <div className="bg-white rounded-2xl shadow-xl p-8 border border-gray-100 sticky top-8">
-              <div className="relative flex flex-col items-center w-full">
-                <div className="relative w-40 h-40 mx-auto mb-6">
-                  {playerStats.image ? (
-                    <div className="relative w-full h-full rounded-full overflow-hidden border-4 border-white shadow-xl">
-                      <Image
-                        src={playerStats.image}
-                        alt="Profile"
-                        fill
-                        className="object-cover"
-                      />
-                    </div>
-                  ) : (
-                    <div className="w-full h-full rounded-full bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center border-4 border-white shadow-xl">
-                      <span className="text-5xl text-gray-400 font-bold">
-                        {!isLoaded ? "P" : playerStats.name ? playerStats.name[0] : "P"}
-                      </span>
-                    </div>
-                  )}
-                  {/* PB Index */}
-                  <div className="absolute -top-2 -right-2 w-16 h-16 bg-gradient-to-br from-red-500 to-red-600 rounded-full flex items-center justify-center shadow-xl transform hover:scale-105 transition-transform">
-                    <div className="w-14 h-14 bg-white rounded-full flex items-center justify-center">
-                      <span className="text-xl font-bold text-red-600">{playerStats.pbIndex || 0}</span>
+            <div className="bg-white rounded-2xl shadow-xl p-6 sticky top-8">
+              {/* Profile Photo */}
+              <div className="text-center mb-6">
+                {playerStats.image ? (
+                  <img 
+                    src={playerStats.image} 
+                    alt="Profile" 
+                    className="w-32 h-32 rounded-full object-cover border-4 border-white shadow-lg mx-auto mb-4"
+                  />
+                ) : (
+                  <div className="w-32 h-32 bg-gradient-to-br from-red-500 to-red-600 rounded-full flex items-center justify-center text-white text-4xl font-bold border-4 border-white shadow-lg mx-auto mb-4 relative">
+                    {playerStats.name.charAt(0)}
+                    <div className="absolute -top-2 -right-2 w-8 h-8 bg-red-600 rounded-full flex items-center justify-center text-white text-sm font-bold">
+                      {playerStats.pbIndex}
                     </div>
                   </div>
-                </div>
-
-                <h2 className="text-2xl font-bold mt-4 mb-2 text-center">
-                  {!isLoaded ? "Your name" : (playerStats.name || "Your name")}
-                </h2>
-                <p className="text-lg text-gray-600 mb-1">
-                  {!isLoaded ? "Position" : (playerStats.position || "Position")}
-                </p>
-                <p className="text-gray-500 mb-4">
-                  {!isLoaded ? "Club" : (playerStats.club || "Club")}
-                </p>
+                )}
+                <h1 className="text-2xl font-bold text-gray-900 mb-1">{playerStats.name}</h1>
+                <p className="text-gray-600 mb-2">{playerStats.position} • {playerStats.club}</p>
+                <p className="text-gray-500 text-sm mb-4">{playerStats.category} • {playerStats.competitionLevel}</p>
                 
-                {/* Stats Link Button */}
-                <Link 
-                  href="/my-stats" 
-                  className="w-full inline-flex items-center justify-center px-6 py-3 bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white font-medium rounded-xl transition-all transform hover:scale-105 shadow-lg"
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
-                    <path d="M2 11a1 1 0 011-1h2a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1v-5zm6-4a1 1 0 011-1h2a1 1 0 011 1v9a1 1 0 01-1 1H9a1 1 0 01-1-1V7zm6-3a1 1 0 011-1h2a1 1 0 011 1v12a1 1 0 01-1 1h-2a1 1 0 01-1-1V4z" />
-                  </svg>
-                  View My Stats
-                </Link>
+                {/* Action Buttons */}
+                <div className="space-y-3">
+                  <button 
+                    onClick={handleViewStats}
+                    className="w-full bg-red-600 text-white py-3 px-4 rounded-xl font-medium hover:bg-red-700 transition-colors flex items-center justify-center space-x-2"
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                    </svg>
+                    <span>View My Stats</span>
+                  </button>
+                  <button 
+                    onClick={handleEditProfile}
+                    className="w-full bg-red-600 text-white py-3 px-4 rounded-xl font-medium hover:bg-red-700 transition-colors flex items-center justify-center space-x-2"
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                    </svg>
+                    <span>Edit Profile</span>
+                  </button>
+                </div>
               </div>
             </div>
           </div>
 
-          {/* Edit Form */}
-          <div className="lg:col-span-2">
-            <div className="bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden">
-              {/* Tabs */}
-              <div className="border-b border-gray-200">
-                <nav className="flex space-x-8 px-6" aria-label="Tabs">
+          {/* Main Content */}
+          <div className="lg:col-span-3">
+
+            {/* Tabs */}
+            <div className="bg-white rounded-2xl shadow-xl overflow-hidden">
+              <div className="border-b border-gray-100">
+                <nav className="flex space-x-1 px-8">
                   {tabs.map((tab) => (
                     <button
                       key={tab.id}
                       onClick={() => setActiveTab(tab.id)}
-                      className={`py-4 px-1 border-b-2 font-medium text-sm flex items-center space-x-2 transition-colors ${
+                      className={`py-4 px-6 font-medium text-sm transition-all duration-200 rounded-t-xl ${
                         activeTab === tab.id
-                          ? 'border-red-500 text-red-600'
-                          : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                          ? 'bg-red-50 text-red-600 border-b-2 border-red-600'
+                          : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
                       }`}
                     >
-                      <span>{tab.label}</span>
+                      <span className="mr-2">{tab.icon}</span>
+                      {tab.name}
                     </button>
                   ))}
                 </nav>
               </div>
 
               {/* Tab Content */}
-              <div className="p-6">
-                {activeTab === 'video' ? (
-                  <MyVideosTab />
-                ) : (
-                  <>
-                    {/* Basic Info Tab */}
-                    {activeTab === 'basic' && (
-                      <div className="space-y-6">
-                        {/* Photo Upload */}
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-3">Profile Photo</label>
-                          <div
-                            {...getRootProps()}
-                            className={`border-2 border-dashed rounded-xl p-6 text-center cursor-pointer transition-all ${
-                              isDragging ? 'border-red-500 bg-red-50' : 'border-gray-300 hover:border-gray-400 hover:bg-gray-50'
-                            }`}
-                          >
-                            <input {...getInputProps()} />
-                            <div className="flex flex-col items-center">
-                              <svg className="w-8 h-8 mb-2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                              </svg>
-                              <p className="text-sm text-gray-500">Drag and drop or click to upload</p>
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* Basic Info Grid */}
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-2">Name</label>
-                            <input
-                              type="text"
-                              name="name"
-                              value={playerStats.name}
-                              onChange={handleInputChange}
-                              className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent transition-colors"
-                              placeholder="Enter your name"
-                            />
-                          </div>
-
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-2">Position</label>
-                            <select
-                              name="position"
-                              value={playerStats.position}
-                              onChange={handleInputChange}
-                              className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent appearance-none transition-colors"
-                            >
-                              <option value="">Select a position</option>
-                              {positions.map((pos) => (
-                                <option key={pos} value={pos}>{pos}</option>
-                              ))}
-                            </select>
-                          </div>
-
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-2">Club</label>
-                            <input
-                              type="text"
-                              name="club"
-                              value={playerStats.club}
-                              onChange={handleInputChange}
-                              className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent transition-colors"
-                              placeholder="Enter club name"
-                            />
-                          </div>
-
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-2">Competition Level</label>
-                            <select
-                              name="competitionLevel"
-                              value={playerStats.competitionLevel}
-                              onChange={handleInputChange}
-                              className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent appearance-none transition-colors"
-                            >
-                              <option value="">Select a level</option>
-                              {competitionLevels.map((level) => (
-                                <option key={level} value={level}>{level}</option>
-                              ))}
-                            </select>
-                          </div>
-
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-2">Height (cm)</label>
-                            <input
-                              type="text"
-                              name="height"
-                              value={playerStats.height}
-                              onChange={handleInputChange}
-                              className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent transition-colors"
-                              placeholder="180"
-                            />
-                          </div>
-
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-2">Weight (kg)</label>
-                            <input
-                              type="text"
-                              name="weight"
-                              value={playerStats.weight}
-                              onChange={handleInputChange}
-                              className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent transition-colors"
-                              placeholder="75"
-                            />
-                          </div>
-                        </div>
-
-                        {/* Bio */}
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-2">Bio</label>
-                          <textarea
-                            name="bio"
-                            value={playerStats.bio}
-                            onChange={handleInputChange}
-                            rows={4}
-                            className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent transition-colors resize-none"
-                            placeholder="Tell us about yourself, your playing style, and what makes you unique..."
-                          />
-                        </div>
+              <div className="p-8">
+                {activeTab === 'basic' && (
+                  <div className="space-y-8">
+                    <div className="flex items-center justify-between">
+                      <h2 className="text-3xl font-bold text-gray-900">Profile Summary</h2>
+                      <div className="flex items-center space-x-3">
+                        <span className="text-sm text-gray-500">Last updated: Today</span>
+                        <div className="w-2 h-2 bg-green-500 rounded-full"></div>
                       </div>
-                    )}
-                    {/* Details Tab */}
-                    {activeTab === 'details' && (
-                      <div className="space-y-6">
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-2">Phone</label>
-                            <input
-                              type="tel"
-                              name="phone"
-                              value={playerStats.phone}
-                              onChange={handleInputChange}
-                              className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent transition-colors"
-                              placeholder="+1 (555) 123-4567"
-                            />
-                          </div>
-
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-2">GPA</label>
-                            <input
-                              type="text"
-                              name="gpa"
-                              value={playerStats.gpa}
-                              onChange={handleInputChange}
-                              className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent transition-colors"
-                              placeholder="3.8"
-                            />
-                          </div>
-                        </div>
-
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-2">Address</label>
-                          <input
-                            type="text"
-                            name="address"
-                            value={playerStats.address}
-                            onChange={handleInputChange}
-                            className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent transition-colors"
-                            placeholder="Enter your address"
-                          />
-                        </div>
-
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-2">Experience</label>
-                          <textarea
-                            name="experience"
-                            value={playerStats.experience}
-                            onChange={handleInputChange}
-                            rows={4}
-                            className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent transition-colors resize-none"
-                            placeholder="Describe your playing experience, training background, and career highlights..."
-                          />
-                        </div>
-
-                        {/* Academics */}
-                        <div className="bg-gray-50 rounded-xl p-6">
-                          <h3 className="text-lg font-semibold text-gray-800 mb-4">Academic Information</h3>
-                          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                            <div>
-                              <label className="block text-sm font-medium text-gray-700 mb-2">School</label>
-                              <input
-                                type="text"
-                                name="academics.school"
-                                value={playerStats.academics.school}
-                                onChange={(e) => {
-                                  const newStats = {
-                                    ...playerStats,
-                                    academics: {
-                                      ...playerStats.academics,
-                                      school: e.target.value
-                                    }
-                                  };
-                                  setPlayerStats(newStats);
-                                  if (typeof window !== 'undefined') {
-                                    localStorage.setItem('playerStats', JSON.stringify(newStats));
-                                  }
-                                }}
-                                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent transition-colors"
-                                placeholder="University name"
-                              />
-                            </div>
-                            <div>
-                              <label className="block text-sm font-medium text-gray-700 mb-2">Program</label>
-                              <input
-                                type="text"
-                                name="academics.program"
-                                value={playerStats.academics.program}
-                                onChange={(e) => {
-                                  const newStats = {
-                                    ...playerStats,
-                                    academics: {
-                                      ...playerStats.academics,
-                                      program: e.target.value
-                                    }
-                                  };
-                                  setPlayerStats(newStats);
-                                  if (typeof window !== 'undefined') {
-                                    localStorage.setItem('playerStats', JSON.stringify(newStats));
-                                  }
-                                }}
-                                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent transition-colors"
-                                placeholder="Program of study"
-                              />
-                            </div>
-                            <div>
-                              <label className="block text-sm font-medium text-gray-700 mb-2">Year</label>
-                              <input
-                                type="text"
-                                name="academics.year"
-                                value={playerStats.academics.year}
-                                onChange={(e) => {
-                                  const newStats = {
-                                    ...playerStats,
-                                    academics: {
-                                      ...playerStats.academics,
-                                      year: e.target.value
-                                    }
-                                  };
-                                  setPlayerStats(newStats);
-                                  if (typeof window !== 'undefined') {
-                                    localStorage.setItem('playerStats', JSON.stringify(newStats));
-                                  }
-                                }}
-                                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent transition-colors"
-                                placeholder="2024"
-                              />
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    )}
-                    {/* Social & Media Tab */}
-                    {activeTab === 'social' && (
-                      <div className="space-y-6">
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-2">Instagram</label>
-                            <div className="relative">
-                              <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400">@</span>
-                              <input
-                                type="text"
-                                value={playerStats.socialMedia.instagram}
-                                onChange={(e) => handleSocialMediaChange('instagram', e.target.value)}
-                                className="w-full pl-8 pr-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent transition-colors"
-                                placeholder="username"
-                              />
-                            </div>
-                          </div>
-
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-2">Twitter</label>
-                            <div className="relative">
-                              <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400">@</span>
-                              <input
-                                type="text"
-                                value={playerStats.socialMedia.twitter}
-                                onChange={(e) => handleSocialMediaChange('twitter', e.target.value)}
-                                className="w-full pl-8 pr-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent transition-colors"
-                                placeholder="username"
-                              />
-                            </div>
-                          </div>
-
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-2">LinkedIn</label>
-                            <input
-                              type="text"
-                              value={playerStats.socialMedia.linkedin}
-                              onChange={(e) => handleSocialMediaChange('linkedin', e.target.value)}
-                              className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent transition-colors"
-                              placeholder="profile-url"
-                            />
-                          </div>
-
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-2">YouTube</label>
-                            <div className="relative">
-                              <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400">@</span>
-                              <input
-                                type="text"
-                                value={playerStats.socialMedia.youtube}
-                                onChange={(e) => handleSocialMediaChange('youtube', e.target.value)}
-                                className="w-full pl-8 pr-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent transition-colors"
-                                placeholder="channel-name"
-                              />
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    )}
-                    {/* Achievements Tab */}
-                    {activeTab === 'achievements' && (
-                      <div className="space-y-6">
-                        <div>
-                          <div className="flex items-center justify-between mb-4">
-                            <label className="block text-sm font-medium text-gray-700">Achievements & Awards</label>
-                            <button
-                              onClick={addAchievement}
-                              className="inline-flex items-center px-4 py-2 bg-red-500 text-white text-sm font-medium rounded-lg hover:bg-red-600 transition-colors"
-                            >
-                              <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                              </svg>
-                              Add Achievement
-                            </button>
-                          </div>
-                          
-                          <div className="space-y-4">
-                            {playerStats.achievements.map((achievement, index) => (
-                              <div key={index} className="flex items-center space-x-3">
-                                <input
-                                  type="text"
-                                  value={achievement}
-                                  onChange={(e) => handleAchievementChange(index, e.target.value)}
-                                  className="flex-1 px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent transition-colors"
-                                  placeholder="Enter achievement or award"
-                                />
-                                <button
-                                  onClick={() => removeAchievement(index)}
-                                  className="p-3 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors"
-                                >
-                                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                  </svg>
-                                </button>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      </div>
-                    )}
-                    {/* References Tab */}
-                    {activeTab === 'references' && (
-                      <div className="space-y-6">
-                        <div className="flex items-center justify-between">
-                          <label className="block text-sm font-medium text-gray-700">References & Endorsements</label>
-                          <button
-                            onClick={handleAddReference}
-                            className="inline-flex items-center px-4 py-2 bg-red-500 text-white text-sm font-medium rounded-lg hover:bg-red-600 transition-colors"
-                          >
-                            <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                    </div>
+                    
+                    {/* Personal Information Cards */}
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                      {/* Basic Info Card */}
+                      <div className="bg-white rounded-2xl shadow-lg border border-gray-100 p-8">
+                        <div className="flex items-center justify-between mb-6">
+                          <h3 className="text-xl font-bold text-gray-900">Basic Information</h3>
+                          <div className="w-8 h-8 bg-red-50 rounded-full flex items-center justify-center">
+                            <svg className="w-4 h-4 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                             </svg>
-                            Add Reference
-                          </button>
+                          </div>
                         </div>
                         
-                        <div className="space-y-4">
-                          {playerStats.references.map((reference, index) => (
-                            <div key={index} className="bg-gray-50 rounded-xl p-6">
-                              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <div>
-                                  <label className="block text-sm font-medium text-gray-700 mb-2">Name</label>
-                                  <input
-                                    type="text"
-                                    value={reference.name}
-                                    onChange={(e) => {
-                                      const newReferences = [...playerStats.references];
-                                      newReferences[index].name = e.target.value;
-                                      setPlayerStats({
-                                        ...playerStats,
-                                        references: newReferences
-                                      });
-                                    }}
-                                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent transition-colors"
-                                    placeholder="Reference name"
-                                  />
-                                </div>
-                                <div>
-                                  <label className="block text-sm font-medium text-gray-700 mb-2">Role</label>
-                                  <input
-                                    type="text"
-                                    value={reference.role}
-                                    onChange={(e) => {
-                                      const newReferences = [...playerStats.references];
-                                      newReferences[index].role = e.target.value;
-                                      setPlayerStats({
-                                        ...playerStats,
-                                        references: newReferences
-                                      });
-                                    }}
-                                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent transition-colors"
-                                    placeholder="Coach, Player, etc."
-                                  />
-                                </div>
-                              </div>
+                        <div className="space-y-6">
+                          <div className="grid grid-cols-2 gap-4">
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-2">Full Name</label>
+                              <input
+                                type="text"
+                                value={playerStats.name}
+                                onChange={(e) => setPlayerStats({...playerStats, name: e.target.value})}
+                                className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent bg-gray-50"
+                                placeholder="Enter your full name"
+                              />
                             </div>
-                          ))}
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-2">Position</label>
+                              <select
+                                value={playerStats.position}
+                                onChange={(e) => setPlayerStats({...playerStats, position: e.target.value})}
+                                className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent bg-gray-50"
+                              >
+                                <option value="Forward">Forward</option>
+                                <option value="Midfielder">Midfielder</option>
+                                <option value="Defender">Defender</option>
+                                <option value="Goalkeeper">Goalkeeper</option>
+                              </select>
+                            </div>
+                          </div>
+                          
+                          <div className="grid grid-cols-2 gap-4">
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-2">Height (cm)</label>
+                              <input
+                                type="text"
+                                value={playerStats.height}
+                                onChange={(e) => setPlayerStats({...playerStats, height: e.target.value})}
+                                className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent bg-gray-50"
+                                placeholder="180"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-2">Weight (kg)</label>
+                              <input
+                                type="text"
+                                value={playerStats.weight}
+                                onChange={(e) => setPlayerStats({...playerStats, weight: e.target.value})}
+                                className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent bg-gray-50"
+                                placeholder="75"
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Club Information Card */}
+                      <div className="bg-white rounded-2xl shadow-lg border border-gray-100 p-8">
+                        <div className="flex items-center justify-between mb-6">
+                          <h3 className="text-xl font-bold text-gray-900">Club Information</h3>
+                          <div className="w-8 h-8 bg-blue-50 rounded-full flex items-center justify-center">
+                            <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                            </svg>
+                          </div>
+                        </div>
+                        
+                        <div className="space-y-6">
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">Current Club</label>
+                            <input
+                              type="text"
+                              value={playerStats.club}
+                              onChange={(e) => setPlayerStats({...playerStats, club: e.target.value})}
+                              className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent bg-gray-50"
+                              placeholder="e.g., Ottawa South United"
+                            />
+                          </div>
+                          
+                          <div className="grid grid-cols-2 gap-4">
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-2">Category</label>
+                              <input
+                                type="text"
+                                value={playerStats.category}
+                                onChange={(e) => setPlayerStats({...playerStats, category: e.target.value})}
+                                className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent bg-gray-50"
+                                placeholder="e.g., U17 M"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-2">Competition Level</label>
+                              <input
+                                type="text"
+                                value={playerStats.competitionLevel}
+                                onChange={(e) => setPlayerStats({...playerStats, competitionLevel: e.target.value})}
+                                className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent bg-gray-50"
+                                placeholder="e.g., PLSJQ"
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Bio Section */}
+                    <div className="bg-white rounded-2xl shadow-lg border border-gray-100 p-8">
+                      <div className="flex items-center justify-between mb-6">
+                        <h3 className="text-xl font-bold text-gray-900">About Me</h3>
+                        <div className="w-8 h-8 bg-red-50 rounded-full flex items-center justify-center">
+                          <svg className="w-4 h-4 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                          </svg>
+                        </div>
+                      </div>
+                      
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Professional Bio</label>
+                        <textarea
+                          value={playerStats.bio}
+                          onChange={(e) => setPlayerStats({...playerStats, bio: e.target.value})}
+                          rows={4}
+                          className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent bg-gray-50 resize-none"
+                          placeholder="Tell us about your soccer journey, achievements, and goals..."
+                        />
+                        <p className="text-sm text-gray-500 mt-2">This will be visible to coaches and scouts</p>
+                      </div>
+                    </div>
+
+                    {/* Save Changes Button */}
+                    {isEditing && (
+                      <div className="flex justify-end space-x-4 pt-6">
+                        <button
+                          onClick={() => setIsEditing(false)}
+                          className="px-8 py-3 border border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 transition-colors font-medium"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          onClick={handleSaveChanges}
+                          className="px-8 py-3 bg-red-600 text-white rounded-xl hover:bg-red-700 transition-colors font-medium flex items-center space-x-2"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                          </svg>
+                          <span>Save Changes</span>
+                        </button>
+                      </div>
+                    )}
+
+                    {/* Success Message */}
+                    {saveSuccess && (
+                      <div className="fixed top-4 right-4 bg-green-50 border border-green-200 rounded-xl p-4 shadow-lg z-50">
+                        <div className="flex items-center space-x-3">
+                          <div className="w-6 h-6 bg-green-500 rounded-full flex items-center justify-center">
+                            <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                            </svg>
+                          </div>
+                          <p className="text-green-800 font-medium">Changes saved successfully!</p>
                         </div>
                       </div>
                     )}
-                    {/* Key Stats Tab */}
-                    {activeTab === 'keystats' && (
-                      <KeyStatsTab />
-                    )}
-                    {/* Save Button */}
-                    <div className="pt-6 border-t border-gray-200">
-                      <div className="flex flex-col sm:flex-row gap-4">
-                        <button 
-                          onClick={() => setIsPreview(true)}
-                          className="flex-1 bg-gray-500 text-white py-3 rounded-xl font-medium hover:bg-gray-600 transition-colors"
+                  </div>
+                )}
+
+                {activeTab === 'athletics' && (
+                  <div className="space-y-6">
+                    <h2 className="text-2xl font-bold text-gray-900 mb-6">Athletic Information</h2>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Goals</label>
+                        <input
+                          type="number"
+                          placeholder="15"
+                          className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Assists</label>
+                        <input
+                          type="number"
+                          placeholder="8"
+                          className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Performance Timeline */}
+                    <div className="mt-8">
+                      <div className="flex items-center justify-between mb-6">
+                        <h3 className="text-xl font-bold text-gray-900">Performance Timeline</h3>
+                        <button
+                          onClick={() => setShowPerformanceModal(true)}
+                          className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition-colors flex items-center space-x-2"
                         >
-                          Preview Profile
+                          <span>+</span>
+                          <span>Add Season</span>
                         </button>
-                        <button 
-                          onClick={handleSave}
-                          className="flex-1 bg-gradient-to-r from-red-500 to-red-600 text-white py-3 rounded-xl font-medium hover:from-red-600 hover:to-red-700 transition-all transform hover:scale-105 shadow-lg"
+                      </div>
+                      
+                      {/* Timeline */}
+                      <div className="relative">
+                        {/* Timeline Line */}
+                        <div className="absolute left-6 top-0 bottom-0 w-0.5 bg-gray-200"></div>
+                        
+                        {/* 2024 Season */}
+                        <div className="relative flex items-start space-x-6 mb-8">
+                          <div className="relative z-10 w-12 h-12 bg-red-500 rounded-full flex items-center justify-center text-white font-bold text-sm">
+                            2024
+                          </div>
+                          <div className="flex-1 bg-white rounded-2xl shadow-lg p-6 border border-gray-100">
+                            <div className="flex items-center justify-between mb-4">
+                              <h4 className="text-lg font-semibold text-gray-900">Varsity Team</h4>
+                              <div className="flex space-x-2">
+                                <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                  Starter
+                                </span>
+                                <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-orange-100 text-orange-800">
+                                  #22
+                                </span>
+                              </div>
+                            </div>
+                            <div className="grid grid-cols-2 gap-4 mb-4">
+                              <div className="text-center">
+                                <div className="text-2xl font-bold text-gray-900">15</div>
+                                <div className="text-sm text-gray-600">Goals</div>
+                              </div>
+                              <div className="text-center">
+                                <div className="text-2xl font-bold text-gray-900">8</div>
+                                <div className="text-sm text-gray-600">Assists</div>
+                              </div>
+                            </div>
+                            <button
+                              onClick={() => setShowPerformanceModal(true)}
+                              className="w-full bg-red-600 text-white py-2 px-4 rounded-lg hover:bg-red-700 transition-colors flex items-center justify-center space-x-2"
+                            >
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                              </svg>
+                              <span>Edit Performance</span>
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* 2023 Season */}
+                        <div className="relative flex items-start space-x-6 mb-8">
+                          <div className="relative z-10 w-12 h-12 bg-orange-500 rounded-full flex items-center justify-center text-white font-bold text-sm">
+                            2023
+                          </div>
+                          <div className="flex-1 bg-white rounded-2xl shadow-lg p-6 border border-gray-100">
+                            <div className="flex items-center justify-between mb-4">
+                              <h4 className="text-lg font-semibold text-gray-900">Junior Varsity</h4>
+                              <div className="flex space-x-2">
+                                <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                  Starter
+                                </span>
+                                <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-orange-100 text-orange-800">
+                                  #22
+                                </span>
+                              </div>
+                            </div>
+                            <div className="grid grid-cols-2 gap-4 mb-4">
+                              <div className="text-center">
+                                <div className="text-2xl font-bold text-gray-900">12</div>
+                                <div className="text-sm text-gray-600">Goals</div>
+                              </div>
+                              <div className="text-center">
+                                <div className="text-2xl font-bold text-gray-900">6</div>
+                                <div className="text-sm text-gray-600">Assists</div>
+                              </div>
+                            </div>
+                            <button
+                              onClick={() => setShowPerformanceModal(true)}
+                              className="w-full bg-orange-600 text-white py-2 px-4 rounded-lg hover:bg-orange-700 transition-colors flex items-center justify-center space-x-2"
+                            >
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                              </svg>
+                              <span>Edit Performance</span>
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Add New Season */}
+                        <div className="relative flex items-start space-x-6">
+                          <div className="relative z-10 w-12 h-12 bg-gray-300 rounded-full flex items-center justify-center">
+                            <svg className="w-6 h-6 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                            </svg>
+                          </div>
+                          <div className="flex-1 border-2 border-dashed border-gray-300 rounded-2xl p-8 text-center hover:border-gray-400 transition-colors cursor-pointer">
+                            <div className="text-gray-500">
+                              <svg className="w-12 h-12 mx-auto mb-4 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                              </svg>
+                              <h4 className="text-lg font-semibold mb-2">Add New Season</h4>
+                              <p className="text-sm">Track your next performance milestone</p>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Save Changes Button for Athletics */}
+                    {isEditing && (
+                      <div className="flex justify-end space-x-4 pt-6 border-t border-gray-200">
+                        <button
+                          onClick={() => setIsEditing(false)}
+                          className="px-6 py-3 border border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 transition-colors"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          onClick={handleSaveChanges}
+                          className="px-6 py-3 bg-red-600 text-white rounded-xl hover:bg-red-700 transition-colors"
                         >
                           Save Changes
                         </button>
                       </div>
-                      {saveSuccess && (
-                        <div className="mt-4 p-4 bg-green-50 border border-green-200 rounded-xl text-green-700">
-                          ✅ Profile saved successfully!
-                        </div>
-                      )}
-                    </div>
-                  </>
+                    )}
+                  </div>
                 )}
+
+                {activeTab === 'academics' && (
+                  <div className="space-y-6">
+                    <h2 className="text-2xl font-bold text-gray-900 mb-6">Academic Information</h2>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">School</label>
+                        <input
+                          type="text"
+                          value={playerStats.academics.school}
+                          onChange={(e) => setPlayerStats({
+                            ...playerStats, 
+                            academics: {...playerStats.academics, school: e.target.value}
+                          })}
+                          className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Program</label>
+                        <input
+                          type="text"
+                          value={playerStats.academics.program}
+                          onChange={(e) => setPlayerStats({
+                            ...playerStats, 
+                            academics: {...playerStats.academics, program: e.target.value}
+                          })}
+                          className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Year</label>
+                        <input
+                          type="text"
+                          value={playerStats.academics.year}
+                          onChange={(e) => setPlayerStats({
+                            ...playerStats, 
+                            academics: {...playerStats.academics, year: e.target.value}
+                          })}
+                          className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">GPA</label>
+                        <input
+                          type="text"
+                          value={playerStats.gpa}
+                          onChange={(e) => setPlayerStats({...playerStats, gpa: e.target.value})}
+                          className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Academic Achievements Section */}
+                    <div className="mt-8">
+                      <h3 className="text-xl font-bold text-gray-900 mb-4">Academic Achievements</h3>
+                      <div className="space-y-4">
+                        {playerStats.achievements.filter(achievement => 
+                          achievement.toLowerCase().includes('academic') || 
+                          achievement.toLowerCase().includes('excellence') ||
+                          achievement.toLowerCase().includes('award')
+                        ).map((achievement, index) => (
+                          <div key={index} className="bg-gray-50 rounded-xl p-4 border border-gray-200">
+                            <div className="flex items-center justify-between">
+                              <p className="text-gray-800 font-medium">{achievement}</p>
+                              <button 
+                                onClick={() => editAchievement(index)}
+                                className="text-red-600 hover:text-red-700 text-sm font-medium"
+                              >
+                                Edit
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                        <button 
+                          onClick={addAchievement}
+                          className="w-full bg-red-600 text-white py-3 px-4 rounded-xl font-medium hover:bg-red-700 transition-colors"
+                        >
+                          + Add Academic Achievement
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Save Changes Button */}
+                    {isEditing && (
+                      <div className="flex justify-end space-x-4 pt-6 border-t border-gray-200">
+                        <button
+                          onClick={() => setIsEditing(false)}
+                          className="px-6 py-3 border border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 transition-colors"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          onClick={handleSaveChanges}
+                          className="px-6 py-3 bg-red-600 text-white rounded-xl hover:bg-red-700 transition-colors"
+                        >
+                          Save Changes
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {activeTab === 'info' && (
+                  <div className="space-y-6">
+                    <h2 className="text-2xl font-bold text-gray-900 mb-6">My Information</h2>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Phone</label>
+                        <input
+                          type="text"
+                          value={playerStats.phone}
+                          onChange={(e) => setPlayerStats({...playerStats, phone: e.target.value})}
+                          className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Address</label>
+                        <input
+                          type="text"
+                          value={playerStats.address}
+                          onChange={(e) => setPlayerStats({...playerStats, address: e.target.value})}
+                          className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                        />
+                      </div>
+                      <div className="md:col-span-2">
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Social Media</label>
+                        <div className="grid grid-cols-2 gap-4">
+                          <input
+                            type="text"
+                            placeholder="Instagram"
+                            value={playerStats.socialMedia.instagram}
+                            onChange={(e) => setPlayerStats({
+                              ...playerStats, 
+                              socialMedia: {...playerStats.socialMedia, instagram: e.target.value}
+                            })}
+                            className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                          />
+                          <input
+                            type="text"
+                            placeholder="Twitter"
+                            value={playerStats.socialMedia.twitter}
+                            onChange={(e) => setPlayerStats({
+                              ...playerStats, 
+                              socialMedia: {...playerStats.socialMedia, twitter: e.target.value}
+                            })}
+                            className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Save Changes Button */}
+                    {isEditing && (
+                      <div className="flex justify-end space-x-4 pt-6 border-t border-gray-200">
+                        <button
+                          onClick={() => setIsEditing(false)}
+                          className="px-6 py-3 border border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 transition-colors"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          onClick={handleSaveChanges}
+                          className="px-6 py-3 bg-red-600 text-white rounded-xl hover:bg-red-700 transition-colors"
+                        >
+                          Save Changes
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {activeTab === 'videos' && <MyVideosTab />}
+                {activeTab === 'stats' && <KeyStatsTab />}
               </div>
             </div>
           </div>
         </div>
       </div>
+
+      {/* Performance Edit Modal */}
+      {showPerformanceModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              <h3 className="text-xl font-bold text-gray-900 mb-4">Edit Achievement</h3>
+              <textarea
+                value={editingAchievement}
+                onChange={(e) => setEditingAchievement(e.target.value)}
+                rows={4}
+                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent mb-4"
+                placeholder="Enter achievement description..."
+              />
+              <div className="flex space-x-3">
+                <button
+                  onClick={saveAchievementEdit}
+                  className="flex-1 bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition-colors"
+                >
+                  Save
+                </button>
+                <button
+                  onClick={() => {
+                    setShowPerformanceModal(false);
+                    setEditingAchievement('');
+                  }}
+                  className="flex-1 bg-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-400 transition-colors"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Academic Edit Modal */}
+      {showAcademicModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              <h3 className="text-xl font-bold text-gray-900 mb-4">Edit Academic Information</h3>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">School</label>
+                  <input
+                    type="text"
+                    value={editingAcademic.school}
+                    onChange={(e) => setEditingAcademic({...editingAcademic, school: e.target.value})}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Program</label>
+                  <input
+                    type="text"
+                    value={editingAcademic.program}
+                    onChange={(e) => setEditingAcademic({...editingAcademic, program: e.target.value})}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Year</label>
+                  <input
+                    type="text"
+                    value={editingAcademic.year}
+                    onChange={(e) => setEditingAcademic({...editingAcademic, year: e.target.value})}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                  />
+                </div>
+              </div>
+              <div className="flex space-x-3 mt-6">
+                <button
+                  onClick={addAcademic}
+                  className="flex-1 bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition-colors"
+                >
+                  Save
+                </button>
+                <button
+                  onClick={() => {
+                    setShowAcademicModal(false);
+                    setEditingAcademic({ school: '', program: '', year: '' });
+                  }}
+                  className="flex-1 bg-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-400 transition-colors"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Add Achievement Modal */}
+      {showAchievementModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              <h3 className="text-xl font-bold text-gray-900 mb-4">Add Academic Achievement</h3>
+              <textarea
+                value={newAchievement}
+                onChange={(e) => setNewAchievement(e.target.value)}
+                rows={4}
+                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent mb-4"
+                placeholder="Enter your academic achievement (e.g., Academic Excellence Award 2023, Dean's List 2022)..."
+              />
+              <div className="flex space-x-3">
+                <button
+                  onClick={saveNewAchievement}
+                  className="flex-1 bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition-colors"
+                >
+                  Add Achievement
+                </button>
+                <button
+                  onClick={() => {
+                    setShowAchievementModal(false);
+                    setNewAchievement('');
+                  }}
+                  className="flex-1 bg-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-400 transition-colors"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
-    </ProtectedRoute>
   );
 } 
