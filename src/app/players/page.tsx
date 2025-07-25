@@ -211,13 +211,54 @@ export default function PlayersPage() {
 
   useEffect(() => {
     const stored = JSON.parse(localStorage.getItem('players') || '[]');
+    
+    // Récupérer le profil utilisateur depuis playerStats
+    const userProfile = localStorage.getItem('playerStats');
+    let userPlayer = null;
+    
+    if (userProfile) {
+      try {
+        const profileData = JSON.parse(userProfile);
+        userPlayer = {
+          id: profileData.id || 'user-profile',
+          name: profileData.name || 'Philippe Bernier',
+          image: profileData.image || '',
+          pbIndex: profileData.pbIndex || 0,
+          position: profileData.position || 'Forward',
+          school: profileData.school || 'University of Montreal',
+          club: profileData.club || '',
+          competitionLevel: profileData.competitionLevel || 'Professional',
+          height: profileData.height || '',
+          weight: profileData.weight || '',
+          gpa: profileData.gpa || '',
+          bio: profileData.bio || '',
+          achievements: profileData.achievements ? [profileData.achievements] : [],
+          socialMedia: {
+            instagram: '',
+            twitter: '',
+            linkedin: '',
+            youtube: ''
+          }
+        };
+      } catch (error) {
+        console.error('Error parsing user profile:', error);
+      }
+    }
+    
     // Fusionner les joueurs mock et ceux du localStorage, sans doublons (par nom), priorité au localStorage
     const merged = [...stored];
+    
+    // Ajouter le profil utilisateur s'il existe et n'est pas déjà dans la liste
+    if (userPlayer && !merged.some((p: Player) => p.name === userPlayer.name)) {
+      merged.unshift(userPlayer); // Ajouter en premier
+    }
+    
     defaultPlayers.forEach((mock) => {
       if (!merged.some((p: Player) => p.name === mock.name)) {
         merged.push(mock);
       }
     });
+    
     setPlayers(merged);
   }, []);
 
@@ -422,7 +463,14 @@ export default function PlayersPage() {
             {filteredAndSortedPlayers.map((player) => (
               <Link href={`/player/${player.id}`} key={player.id} passHref legacyBehavior>
                 <a className="block group">
-                  <div className="bg-white rounded-2xl shadow-xl p-6 hover:shadow-2xl hover:scale-105 transition-all duration-300 cursor-pointer border border-gray-100">
+                  <div className={`relative bg-white rounded-2xl shadow-xl p-6 hover:shadow-2xl hover:scale-105 transition-all duration-300 cursor-pointer border ${
+                    player.id === 'user-profile' ? 'border-red-500 border-2' : 'border-gray-100'
+                  }`}>
+                    {player.id === 'user-profile' && (
+                      <div className="absolute -top-2 -right-2 bg-red-500 text-white text-xs px-2 py-1 rounded-full font-medium">
+                        You
+                      </div>
+                    )}
                     <div className="relative w-full aspect-square mb-6">
                       {/* Cercle de progression */}
                       <div 
