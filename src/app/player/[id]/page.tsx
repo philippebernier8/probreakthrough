@@ -70,33 +70,88 @@ export default function PlayerPage({ params }: { params: { id: string } }) {
     // Charger les données du joueur
     const loadPlayerData = () => {
       try {
-        const players = JSON.parse(localStorage.getItem('players') || '[]');
-        const foundPlayer = players.find((p: Player) => p.id === params.id);
-        
-        if (foundPlayer) {
-          setPlayer(foundPlayer);
-          
-          // Charger le highlight principal depuis localStorage
+        // Si c'est le profil utilisateur (user-profile), récupérer depuis playerStats
+        if (params.id === 'user-profile') {
           const playerStats = JSON.parse(localStorage.getItem('playerStats') || '{}');
-          console.log('🔍 PlayerStats trouvés:', playerStats);
-          console.log('🔍 PlayerId dans playerStats:', playerStats.playerId);
-          console.log('🔍 PlayerId actuel:', params.id);
-          console.log('🔍 MainHighlight:', playerStats.mainHighlight);
-          console.log('🔍 MainHighlightTitle:', playerStats.mainHighlightTitle);
           
-          // Charger le highlight principal s'il existe
-          if (playerStats.mainHighlight && playerStats.mainHighlightTitle) {
-            setMainHighlight({
-              url: playerStats.mainHighlight,
-              title: playerStats.mainHighlightTitle,
-              type: playerStats.mainHighlightType || 'highlight'
-            });
-            console.log('🏆 Highlight principal chargé:', playerStats.mainHighlight);
+          if (playerStats.name) {
+            const userPlayer = {
+              id: 'user-profile',
+              name: playerStats.name || 'Philippe Bernier',
+              image: playerStats.image || '',
+              pbIndex: playerStats.pbIndex || 0,
+              position: playerStats.position || 'Forward',
+              school: playerStats.school || 'University of Montreal',
+              club: playerStats.club || '',
+              competitionLevel: playerStats.competitionLevel || 'Professional',
+              height: playerStats.height || '',
+              weight: playerStats.weight || '',
+              gpa: playerStats.gpa || '',
+              bio: playerStats.bio || '',
+              experience: playerStats.experience || '',
+              achievements: playerStats.achievements ? [playerStats.achievements] : [],
+              socialMedia: {
+                instagram: '',
+                twitter: '',
+                linkedin: '',
+                youtube: ''
+              },
+              academics: {
+                school: playerStats.school || 'University of Montreal',
+                program: 'Sports Science',
+                year: '2024'
+              },
+              references: [],
+              videos: [],
+              mainHighlight: playerStats.mainHighlight || ''
+            };
+            
+            setPlayer(userPlayer);
+            
+            // Charger le highlight principal s'il existe
+            if (playerStats.mainHighlight && playerStats.mainHighlightTitle) {
+              setMainHighlight({
+                url: playerStats.mainHighlight,
+                title: playerStats.mainHighlightTitle,
+                type: playerStats.mainHighlightType || 'highlight'
+              });
+              console.log('🏆 Highlight principal chargé:', playerStats.mainHighlight);
+            } else {
+              console.log('❌ Aucun highlight principal trouvé');
+            }
           } else {
-            console.log('❌ Aucun highlight principal trouvé');
+            setError('User profile not found');
           }
         } else {
-          setError('Player not found');
+          // Pour les autres joueurs, chercher dans la liste des joueurs
+          const players = JSON.parse(localStorage.getItem('players') || '[]');
+          const foundPlayer = players.find((p: Player) => p.id === params.id);
+          
+          if (foundPlayer) {
+            setPlayer(foundPlayer);
+            
+            // Charger le highlight principal depuis localStorage
+            const playerStats = JSON.parse(localStorage.getItem('playerStats') || '{}');
+            console.log('🔍 PlayerStats trouvés:', playerStats);
+            console.log('🔍 PlayerId dans playerStats:', playerStats.playerId);
+            console.log('🔍 PlayerId actuel:', params.id);
+            console.log('🔍 MainHighlight:', playerStats.mainHighlight);
+            console.log('🔍 MainHighlightTitle:', playerStats.mainHighlightTitle);
+            
+            // Charger le highlight principal s'il existe
+            if (playerStats.mainHighlight && playerStats.mainHighlightTitle) {
+              setMainHighlight({
+                url: playerStats.mainHighlight,
+                title: playerStats.mainHighlightTitle,
+                type: playerStats.mainHighlightType || 'highlight'
+              });
+              console.log('🏆 Highlight principal chargé:', playerStats.mainHighlight);
+            } else {
+              console.log('❌ Aucun highlight principal trouvé');
+            }
+          } else {
+            setError('Player not found');
+          }
         }
       } catch (err) {
         setError('Error loading player data');
@@ -105,9 +160,6 @@ export default function PlayerPage({ params }: { params: { id: string } }) {
         setLoading(false);
       }
     };
-
-    // Charger l'utilisateur actuel
-
 
     loadPlayerData();
   }, [params.id]);
